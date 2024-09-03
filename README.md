@@ -8,7 +8,8 @@
 
 ### 1. **RESTful APIs**
    - **Endpoints:**
-     - `/scan`: For uploading and processing new images.
+     - `/upload`: For uploading new images data.
+     - `/scan`: For processing and receving the output of new images.
      - `/feedback`: For sending feedback from the doctor (labeling incorrect results).
      - `/history`: To retrieve past scans and their results.
 
