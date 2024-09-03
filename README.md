@@ -12,11 +12,13 @@
      - `/scan`: For processing and receving the output of new images.
      - `/feedback`: For sending feedback from the doctor (labeling incorrect results).
      - `/history`: To retrieve past scans and their results.
+     - `/getImage/{id}`: Get image by id.
+     - `/createProject`: Initialize the project.
 
    - **Data Format:** JSON
 
 ### 2. **GraphQL (?)**
-   - Frontend needs flexible querying, GraphQL can be considered.
+   - Frontend might needs flexible querying, GraphQL can be considered.
 
    - **Advantages:**
      - Allows the frontend to request exactly the data it needs.
@@ -33,7 +35,7 @@
 ### 7. **Error Handling**
    - Implement error handling for all APIs.
 
-### 8. **Logging and Monitoring**
+### 8. **Logging and Monitoring** (Optional or later)
 
 ## Datasets
 
