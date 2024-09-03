@@ -14,7 +14,7 @@
 
    - **Data Format:** JSON
 
-### 2. **GraphQL**
+### 2. **GraphQL (?)**
    - Frontend needs flexible querying, GraphQL can be considered.
 
    - **Advantages:**
@@ -28,14 +28,11 @@
 
 ### 6. **File Upload Protocols**
    - use `multipart/form-data` in RESTful APIs to upload images.
-   - Ensure that large files are handled properly, perhaps with chunked uploads if necessary.
 
 ### 7. **Error Handling**
    - Implement error handling for all APIs.
 
 ### 8. **Logging and Monitoring**
-   - Implement logging for API requests and responses, especially for errors.
-   - Consider using monitoring tools to track API performance and health.
 
 ## Datasets
 
@@ -64,7 +61,7 @@
    - **Format:** 
      - Use **CSV** or **JSON** files to store labels and annotations.
      - eg.,
-     
+
        ```csv
        image_id, label
        img001.jpg, 0
