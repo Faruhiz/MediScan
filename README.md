@@ -34,6 +34,7 @@ MediScan is a medical imaging project aimed at classifying and analyzing medical
    - **Image Status:** Modified, Approved
 
 ### 2. **MySQL Or MongoDB (?)**
+   - Frontend might needs flexible querying, GraphQL can be considered.
    ### 2.1 **MySQL**
    - **Advantages:**
      - Structured Data: Ideal for structured schema with relationships between entities.
