@@ -1,6 +1,9 @@
 # MediScan
+## Project Overview
+MediScan is a medical imaging project aimed at classifying and analyzing medical images using a deep learning model. The project will leverage pre-trained Convolutional Neural Networks (CNNs) and fine-tune them using transfer learning.
+
 ## Technologies
-- Database: Local Computer Storage for storing images + MySQL,SQL Lite database.
+- Database:  Local storage for images; MySQL or PostgreSQL for metadata.
 
 - Model: Start with pre-trained CNN (Resnet) then fine-tune using transfer learning.
 
@@ -26,53 +29,47 @@
      - `/feedback`: For sending feedback from the doctor (labeling incorrect results).
      - `/history`: To retrieve past scans and their results.
 
-   - **Data Format:** JSON
+   - **Data Format:** JSON or CSV
    - **Image Type:** JPG or Yaml 
    - **Image Status:** Modified, Approved
 
-### 2. **MySQL Or PostgreSQL Or MongoDB (?)**
+### 2. **MySQL Or MongoDB (?)**
    - Frontend might needs flexible querying, GraphQL can be considered.
    ### 2.1 **MySQL**
    - **Advantages:**
-     - Ease of Use: MySQL is beginner-friendly and often considered easier to set up and manage, especially for smaller applications.
-     - Widely Adopted: It has a large community and ecosystem, with excellent compatibility with web technologies like PHP and WordPress.
-     - Speed: For read-heavy operations and simple queries, MySQL tends to be faster due to its architecture.
-     - Replication: Simple and effective master-slave replication options for scaling read performance.
+     - Structured Data: Ideal for structured schema with relationships between entities.
+     - ACID Compliance: Ensures data integrity and supports complex transactions.
+     - Widely Used: Good support and documentation.
+
    - **Disadvantages:**
-     - Limited Advanced Features: MySQL lacks some advanced features available in PostgreSQL, such as partial indexes, full-text search across multiple languages, and rich data types like JSONB.
-     - ACID Compliance: MySQL's default storage engine, MyISAM, is not ACID-compliant. InnoDB is more robust but might require additional tuning.
-     - Concurrency Control: PostgreSQL generally handles high-concurrency better, especially for write-heavy workloads.
-   ### 2.2 **PostgreSQL **
+     - Schema Rigidity: Changes in schema require migrations and can be complex.
+     - Scalability: Can face challenges with horizontal scaling.
+     
+   ### 2.2 **MongoDB**
    - **Advantages:**
-      - Advanced Features: PostgreSQL offers powerful features like complex queries, full-text search, JSONB support, and advanced indexing techniques.
-      - ACID Compliance: PostgreSQL is fully ACID-compliant by default, ensuring higher reliability for transaction-based applications.
-      - Extensibility: You can extend PostgreSQL with custom data types, functions, and even procedural languages like PL/pgSQL, Python, etc.
-      - Concurrency: PostgreSQL uses Multi-Version Concurrency Control (MVCC), which allows better performance under high-load scenarios with concurrent transactions.
+      - Flexible Schema: Ideal for handling varied data structures and evolving schemas.
+      - Scalability: Easier to scale horizontally.
+      - Document-Based: Stores data in a flexible JSON-like format (BSON), which can be useful for storing metadata and annotations.
    - **Disadvantages:**
-   - Steeper Learning Curve: PostgreSQL's advanced features come with a steeper learning curve compared to MySQL.
-   - Performance: For simple, read-heavy queries, PostgreSQL may be slightly slower than MySQL due to the extra overhead of MVCC.
+   - ACID Transactions: Less robust compared to MySQL, although improvements have been made.
+   - Complex Queries: Might be less efficient for complex joins and transactions.
 
    **Recommendation for MediScan:**
-   - PostgreSQL is better suited if you require advanced data manipulation, ACID-compliance, and support for complex queries involving medical image metadata (e.g., JSONB fields).
-   - MySQL can be a better option if your primary focus is simplicity and speed for basic operations.
+   - MySQL is better suited if your project requires complex transactions and a structured schema with clear relationships.
+   - MongoDB can be a better option if you need flexibility in schema design and are dealing with evolving or varied data structures.
 
    **Storing Images in the Database:**
       - For storing images, it is generally advised not to store images directly in the database for large datasets (like medical images) because:
       - **BLOB (Binary Large Objects) in relational databases can lead to performance issues when querying or handling large images.**
       - **Best Practice: Store the image files in an external storage (e.g., local filesystem, cloud storage ), and keep references (e.g., file paths, URLs) in the database.**
          - Store images in a structured directory format (e.g., /images/patient_x/scan_y.jpg)
-         - Save metadata in the database (Include image metadata (e.g., resolution, modality) in structured columns).
-   
-   **Steps to Store Images Using References:**
-   or use cloud storage (Amazon S3).
-   2. Save metadata in the database:
-      - Store the image path or URL in a database field.
-      
+         - Save metadata in the database (Include image metadata (e.g., resolution, modality) in structured columns).      
 
 ### 3. Security Protocol for Storing Images and Metadata:**
    1. Data Encryption:
       - In Transit: Use SSL/TLS for encrypting data between clients and your database server.
       - At Rest: Encrypt the storage where the images are stored using file encryption (for local storage) or cloud encryption features (for services like S3).
+      - Hash the password.
    2. Access Control:
       - Use OAuth2 or JWT tokens for API access.
       - Implement Role-Based Access Control (RBAC) to define who can upload, modify, or retrieve images (doctors, admins).
@@ -85,21 +82,14 @@
       - Use checksums to ensure image files are not corrupted during transfer or storage.
 
 ### 4. **AI Framework - Using MLflow for MediScan**
-MLflow is a great choice for managing your machine learning lifecycle, particularly for a project like MediScan that requires:
+Start with MLflow for ease of use and integration, consider other tools as needed for scaling:
    - Tracking experiments: You can track model parameters, metrics, and outputs (scan results, predictions).
    - Model versioning: Keep track of different versions of your model (ResNet pre-trained and fine-tuned versions).
    - Model deployment: MLflow can help you deploy models as APIs or web services for easy integration with your system.
 
-**Advantages of MLflow:**
-   1. Experiment Tracking: Easy to compare different versions of your CNN models (ResNet, fine-tuning stages).
-   2. Model Registry: Maintain a registry of models, allowing you to seamlessly deploy or rollback specific versions.
-   3. Integration: Works well with Python-based ML libraries (TensorFlow, PyTorch, etc.), which is ideal for a CNN-based model.
-   4. Deployment: MLflow simplifies deploying models into production using REST APIs.
 **Alternative AI Tools:**
    - TensorFlow Serving: Specialized for serving TensorFlow models in production.
    - Kubeflow: A Kubernetes-based solution for machine learning workflows if you're scaling and using cloud infrastructure.
-**Recommendation:**
-   - Start with MLflow for tracking, versioning, and deployment of your models. If scaling becomes necessary, consider Kubeflow later.
 
 ## Datasets
 
@@ -107,9 +97,9 @@ MLflow is a great choice for managing your machine learning lifecycle, particula
    - **Format:** 
      - Formats like **JPEG**, **PNG**, or **TIFF**
    - **Resolution:** 
-     - Should be original resolution, as medical images often require high detail.
+     - High resolution as required for medical imaging.
    - **Storage:** 
-     - Store the images in a structured directory format or use an object storage service like Amazon S3. Example directory structure:
+     - Store the images in a structured directory format.
 
 ```
     /dataset/
@@ -126,15 +116,15 @@ MLflow is a great choice for managing your machine learning lifecycle, particula
 
 ### 2. **Labels and Annotations**
    - **Format:** 
-     - Use **CSV** or **JSON** files to store labels and annotations.
-     - eg.,
-
+     - Use **CSV** or **JSON**
+     
+     **Example**
        ```csv
        image_id, label
        img001.jpg, 0
        img002.jpg, 1
        ```
-       
+
 Classification task:
 
 ```
@@ -161,10 +151,10 @@ Classification task:
    1. **Image Data**
       - Image ID: Unique identifier (e.g., img001)
       - File Name: Name of the image file (e.g., img001.jpg)
-      - File Path/URL: Location of the image (e.g., /path/to/img001.jpg or https://storage.example.com/img001.jpg)
+      - File Path/URL: Location of the image (e.g., /path/to/img001.jpg)
       - Upload Date: Date and time of upload (e.g. 2024-09-10 12:00:00)
       - Image Format: File format (e.g., JPEG, PNG, TIFF)
-      - Resolution: Image resolution (e.g., 1920x1080 pixels)
+      - Resolution: Image resolution (Should be original image resolution)
       - Size: Image size in bytes (e.g., 2MB)
       - Image Modality: Type of imaging (e.g., X-ray, CT scan)
       - Label Status: Whether the image is labeled (e.g., labeled, unlabeled)
