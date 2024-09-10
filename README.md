@@ -161,11 +161,10 @@ Classification task:
    1. **Image Data**
       - Image ID: Unique identifier (e.g., img001)
       - File Name: Name of the image file (e.g., img001.jpg)
-      - File Path/URL: Location of the image (e.g., /path/to/img001.jpg or https://storage.example.com/img001.jpg)
+      - File Path/URL: Location of the image (e.g., /path/to/img001.jpg)
       - Upload Date: Date and time of upload (e.g. 2024-09-10 12:00:00)
       - Image Format: File format (e.g., JPEG, PNG, TIFF)
-      - Resolution: Image resolution (e.g., 1920x1080 pixels)
-      - Size: Image size in bytes (e.g., 2MB)
+      - Resolution: Image resolution (Should be original image resolution)
       - Image Modality: Type of imaging (e.g., X-ray, CT scan)
       - Label Status: Whether the image is labeled (e.g., labeled, unlabeled)
       - Approval Status: Approval status (e.g., pending, approved, modified)
