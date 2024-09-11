@@ -1,4 +1,4 @@
-# MediScan
+# MedSight AI Engine
 ## Project Overview
 MediScan is a medical imaging project aimed at classifying and analyzing medical images using a deep learning model. The project will leverage pre-trained Convolutional Neural Networks (CNNs) and fine-tune them using transfer learning.
 
