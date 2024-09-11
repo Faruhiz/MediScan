@@ -11,9 +11,9 @@ MediScan is a medical imaging project aimed at classifying and analyzing medical
 
 ### 1. **RESTful APIs**
    - **Endpoints:**
-     - `/upload (label, unlabel)`: For uploading new images data.
-     - `/upload(zip)`: Upload image datasets in zip format.
-     - `/get_image_list()`: Retrieve a list of all uploaded images.
+     - `/upload (label, unlabel)`: For uploading new images data. **
+     - `/upload(zip)`: Upload image datasets in zip format. **
+     - `/get_image_list()`: Retrieve a list of all uploaded images. **
      - `/set_image(id)`: Set an image as labeled or for model training.
      - `/modify_image(id, label)` : Modify the label or properties of an image.
      
