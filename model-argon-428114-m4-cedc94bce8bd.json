@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "model-argon-428114-m4",
+  "private_key_id": "cedc94bce8bdd7a20ed3a25b1729300eb49a9cc8",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQCbXgo3jH2Qy0Yc\nfmBt6OxPS61MYApweo0DT+sY2hx/ZDZcAfeCVllSluVV5Kv2fNWb1LUaSqkxijlD\nHyD8TLorENkPGuSYybmLuoYUcfDkGvM6uspH/3//U0FN6BjKrRWdllNjcpsN4qfV\nDi7BpnqpwI+2Z2sFgGXzRywopSLmhOc+hY9EtYedNrx+c3XGw06wyKakxXurS5Yc\n+NrGFhqtJZMOnFreaqdQVa6LIBrpAGtR1JcT1nIWUqCFkNIb5dF9SEv4aKW/aMBA\nUUIPioY8u9LD/ftt4Aa7bJ+L4QBTKI0CWETSpk4Zpb3xeBmx6x/4JOtTw44c6MXx\nsHtToS6RAgMBAAECggEAKW6xoNCpZ6SdxNl607Sq2BahV13BSu+TjU+RrWX09Y/+\n4xhvLeXjGiA9dmNt7GSr/kuCJEnGxvxKevjhLgc0Gmn6yIlubsRU48tRGECucdYy\nCPZpHTwooSlNn/4GJn5z5juBb2LPsKtCAJIwq9m+mmhMquL3alcsWO0g/JHVNc3P\nCUc2HYsQM6D3OH7s59N7FmT7gU1MMMbe2f0li/akuZMH92e34c/87dSGI/kc9Ihm\nucrTCQ9PVkFJ/GXSCUVLKXcqPeFklY6oeMsyNHv9RQwvrkssrRLqTeaEQNQii6n5\nB49JR8uoNcG7Mk9FV0CT9zU1yAcxTK6QCMN6N3HPdQKBgQDMtUg0ST2iBvM5ryMh\nFIDzH6uUnr6dMg0JTOAsxrOyGhKg/jOf3pLffOqRBqNegrPfOGGs0JPRmJYt0K0K\nokPKTxNrwgITjwNJmJBjy8g0JsiSAOaNcjFUEApXygk+YgufHnsynODTKOrBcIzw\nP2WxCgorCJ8TfUNSJ+45KAlsNwKBgQDCS9yWC8ENQf4J3uHdoLhY35w3CNAUNyNH\n/9zsYY0kCL5Yseutg/9ZHsobW2V56xdIs7Jx+fyegWOPwgCdSb6OQGi0QPPT7eCE\n+We8ehICJuucXM7SIGzV9XIoAqObGUjN0XYVqm12HXr53cspWg+AITkLAjJcPvGC\nCSHot5indwKBgCJH7XqMFV0v6sVrNefRRjLwx8wQtX0fp506GYSGFguqYBpD16Nb\nI593jNSSlwM5wiOMjpbhKw/7jJLJkmDogY+8pFT0XWKnHXbSrMN5meJZ6FbC/dkM\nGYSpVwISnG+s/aM8+IamTOQvwvh3/7Iv+7ilJMTGIdWisYZtl3BM6x8LAoGAQW10\nYZ6hqso/Nqm0W4KEsYDTRQEVuMj8e4FgrsUG10yOdKWtXGfns+YXXvD/Efglhhjl\nDVaGSAYANee5dz3fCl4MJC7/LK2c/opR8XkV2V2r16K1DrNWkxItF+YTm+X+yzgu\n0Irsg2rX/449nLY0JAyL/fYGaWPUxdo3bfttT28CgYA5ZtDH/V0Lm6V0i/4vtGEZ\nlANxQldKsSK4YftWYIcB9dVjdS1b0PjFn+l2LGl0/8QioWpN/fqaBfLIwix0riWc\neD0FAlO0cPeQYsJlc0rsxv3WbKaWmt9IZgrQ2HgpQm7F7ZeXuzhiSJLDgk7MV4Ma\nXHkLk/HIJ4FKwZtUzevhwA==\n-----END PRIVATE KEY-----\n",
+  "client_email": "medsight@model-argon-428114-m4.iam.gserviceaccount.com",
+  "client_id": "113776682088346526262",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/medsight%40model-argon-428114-m4.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}
