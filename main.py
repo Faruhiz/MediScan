@@ -1,64 +1,105 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
-from google.cloud import storage
+from flask import Flask, request, jsonify, send_from_directory
+from flask_socketio import SocketIO
+from flask_sqlalchemy import SQLAlchemy
 import os
+from datetime import datetime
+from configs import Config
+from db.models import db, ImageMetadata
 
-app = FastAPI()
+app = Flask(__name__)
+socketio = SocketIO(app)
 
-GCS_BUCKET_NAME = 'medsight-test'
+# Directory for storing uploaded files
+UPLOAD_FOLDER = './uploads'
+if not os.path.exists(UPLOAD_FOLDER):
+    os.makedirs(UPLOAD_FOLDER)
 
-storage_client = storage.Client()
+app.config.from_object(Config)
+# app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-bucket = storage_client.bucket(GCS_BUCKET_NAME)
+# # Configure the SQLite database
+# app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///metadata.db'
+# app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-@app.post("/upload/")
-async def upload_image(file: UploadFile = File(...)):
-    """
-    Upload an image to server (Using GCS for demo only)
-    """
-    try:
-        # Create a blob (GCS object) and upload the file to the bucket
-        blob = bucket.blob(file.filename)
-        blob.upload_from_file(file.file, content_type=file.content_type)
+db.init_app(app)
 
-        file_url = f"gs://{GCS_BUCKET_NAME}/{file.filename}"
+# Create the database table(s)
+with app.app_context():
+    db.create_all()
 
-        return {"message": "Image uploaded successfully", "filename": file.filename, "url": file_url}
+# Directory to save uploaded files
+UPLOAD_FOLDER = './uploads'
+if not os.path.exists(UPLOAD_FOLDER):
+    os.makedirs(UPLOAD_FOLDER)
 
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to upload image to GCS: {str(e)}")
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
+# Upload
+@app.route('/upload', methods=['POST'])
+def upload_image():
+    if 'file' not in request.files:
+        return jsonify({"error": "No file part in the request"}), 400
+
+    image = request.files['file']
+
+    if image.filename == '':
+        return jsonify({"error": "No file selected for uploading"}), 400
     
-@app.post("/upload_batch/")
-async def upload_batch(files: list[UploadFile] = File(...)):
-    """
-    Upload a batch of files to Google Cloud Storage.
-    """
-    try:
-        uploaded_files = []
+    # if image.mimetype not in ['image/jpeg', 'image/png']:
+    #     return "Invalid file type", 400
 
-        # Iterate through each file in the request
-        for file in files:
-            blob = bucket.blob(file.filename)
-            blob.upload_from_file(file.file, content_type=file.content_type)
 
-            uploaded_files.append({"filename": file.filename, "url": f"gs://{GCS_BUCKET_NAME}/{file.filename}"})
+    # Save file to uploads folder
+    image_name = image.filename
+    file_path = os.path.join(app.config['UPLOAD_FOLDER'], image_name)
+    image.save(file_path)
 
-        return {"message": "Batch upload successful", "files": uploaded_files}
+    # Metadata
+    metadata = ImageMetadata(
+        filename=image_name,
+        upload_time=datetime.now(),
+        # mime_type=image.mimetype,
+        file_size=len(image.read())
+    )
 
-    except Exception as e:
-        return {"error": str(e)}
-    
-@app.get("/get_image_list/")
-async def get_image_list():
-    """
-    Retrieve a list of all images (files).
-    """
-    try:
-        blobs = bucket.list_blobs()
+    db.session.add(metadata)
+    db.session.commit()
 
-        image_list = [blob.name for blob in blobs]
+    # Reset file pointer after reading
+    image.seek(0)
 
-        return {"images": image_list}
+    socketio.emit('upload_status', {'status': 'Image uploaded', 'image_name': image_name})
 
-    except Exception as e:
-        return {"error": str(e)}
+    return jsonify({
+        "message": "File uploaded successfully",
+        "metadata": {
+            "filename": image_name,
+            # "mime_type": image.mime_type,
+            "file_size": len(image.read()),
+            "upload_time": metadata.upload_time
+        }
+    }), 200
 
+# --------- WebSocket -----------
+@socketio.on('connect')
+def handle_connect():
+    print("Client connected!")
+    socketio.emit('server_response', {'message': 'Connected to WebSocket'})
+
+@socketio.on('process_image')
+def handle_image_processing(data):
+    classification_result = data['classification_result']
+
+    # data use to be added to DB later
+    feedback = data['feedback']
+    image_id = data['image_id']
+
+    socketio.emit('classification_result', {'result': classification_result})
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    print("Client disconnected!")
+
+if __name__ == '__main__':
+    # Use eventlet for async WebSocket handling
+    socketio.run(app, host='0.0.0.0', port=5000, debug=True)
