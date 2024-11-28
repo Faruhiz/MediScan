@@ -5,6 +5,13 @@ import redis
 import pickle
 import signal
 import sys
+import base64
+import cv2
+import numpy as np
+import torch
+from PIL import Image
+import torch
+import torchvision.transforms as transforms
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, classification_report
@@ -36,12 +43,21 @@ class MLModelManager:
             pickle.dump(model, f)
         return model_path
 
-    def load_model(self, model_name="ml_model.pkl"):
+    def load_model(self, model_name="yolo11n.pt"):
         """Load a saved model."""
         model_path = os.path.join(self.model_folder, model_name)
-        with open(model_path, 'rb') as f:
-            self.current_model = pickle.load(f)
+        try:
+            print(f"Loading model from {model_path}")
+            self.current_model = torch.load(model_path)
+            self.current_model.eval()
+            print(f"Model output type: {type(self.current_model)}")
+
+            print(f"Model loaded successfully")
+        except Exception as e:
+            print(f"Error loading model: {str(e)}")
+            raise
         return self.current_model
+
 
     def train_model(self):
         """Train a new ML model."""
@@ -90,6 +106,82 @@ class MLModelManager:
         
         predictions = self.current_model.predict(input_data)
         return {"predictions": predictions.tolist()}
+    
+    def predict_image(self, base64_image):
+        """Predict using YOLO model with base64-encoded image data."""
+        if not self.current_model:
+            return {"error": "No YOLO model deployed"}
+
+        try:
+            # Decode base64 image
+            image_data = base64.b64decode(base64_image)
+            np_image = np.frombuffer(image_data, dtype=np.uint8)
+            image = cv2.imdecode(np_image, cv2.IMREAD_COLOR)
+
+            # Perform YOLO prediction
+            results = self.current_model.predict(image)  # Adapt for your YOLO API
+            return {"predictions": results}
+        except Exception as e:
+            return {"error": f"Error processing image: {str(e)}"}
+
+
+    def predict_from_path(self, image_path):
+        """Make predictions from an image path using YOLOv5."""
+        if not self.current_model:
+            return {"error": "Model not loaded"}
+
+        # Load and preprocess the image
+        try:
+            print(f"Loading image from {image_path}")
+            image = Image.open(image_path).convert('RGB')
+            image = image.resize((640, 640))  # Resize to 640x640 for YOLOv5
+            image = np.array(image) / 255.0  # Normalize to [0, 1]
+            image_tensor = torch.tensor(image).float().unsqueeze(0).permute(0, 3, 1, 2)  # Add batch dimension and correct shape
+
+            # If using GPU, move the tensor to CUDA
+            if torch.cuda.is_available():
+                image_tensor = image_tensor.cuda()
+
+            print(f"Image shape before prediction: {image_tensor.shape}")
+
+            # Check the model type
+            print(f"Model type: {type(self.current_model)}")
+
+            # Make prediction using YOLOv5 model
+            with torch.no_grad():
+                print("Making prediction...")
+                output = self.current_model(image_tensor)
+
+            # Ensure the output is a dictionary (as expected in YOLOv5)
+            if isinstance(output, dict):
+                # Extract predictions from the 'pred' key
+                predictions = output['pred'][0]  # YOLOv5 typically stores predictions in this format
+            else:
+                return {"error": "Model output is not in the expected format"}
+
+            # Filter predictions (e.g., confidence threshold of 0.5)
+            threshold = 0.5
+            detections = predictions[predictions[:, 4] > threshold]  # Filter by confidence score
+
+            # Process predictions (bounding boxes, class ids, and scores)
+            result = []
+            for det in detections:
+                bbox = det[:4]  # Bounding box [x1, y1, x2, y2]
+                confidence = det[4]  # Confidence score
+                class_id = int(det[5])  # Class ID
+                result.append({
+                    "bbox": bbox.tolist(),
+                    "confidence": confidence,
+                    "class_id": class_id
+                })
+
+            return {"predictions": result}
+
+        except Exception as e:
+            print(f"Error in predict_from_path: {str(e)}")
+            return {"error": str(e)}
+
+
 
 
 ### --- TCPServer Class ---
@@ -115,9 +207,22 @@ class TCPServer:
                 test_labels = eval(parts[2])
                 response = self.model_manager.evaluate_model(test_data, test_labels)
             elif command.startswith('predict'):
+                 # Extract image path
                 parts = command.split('|')
-                input_data = eval(parts[1])
-                response = self.model_manager.predict(input_data)
+                
+                # Check if the path is provided
+                if len(parts) < 2:
+                    response = {"error": "Missing image path"}
+                else:
+                    image_path = parts[1].strip()  # Strip any extra whitespace
+                    print(f"Received image path: {image_path}")
+                    
+                    # Check if the file exists
+                    if not os.path.exists(image_path):
+                        response = {"error": f"File not found: {image_path}"}
+                    else:
+                        # Load the image, process it, and make predictions
+                        response = self.model_manager.predict_from_path(image_path)
             elif command.startswith('deploy'):
                 model_name = command.split('|')[1] if '|' in command else "ml_model.pkl"
                 try:
@@ -194,12 +299,24 @@ class RedisHandler:
         for message in pubsub.listen():
             if not server_running:
                 break
-            if message['type'] == 'message':
+            try:
                 channel = message['channel'].decode('utf-8')
-                data = message['data'].decode('utf-8')
+                data = message['data']
+
+                # Check if data is an integer (e.g., Redis subscription confirmation)
+                if isinstance(data, int):
+                    print(f"Received non-command message: {data}")
+                    continue
+
+                # Decode text data if it is in bytes
+                if isinstance(data, bytes):
+                    data = data.decode('utf-8')
+
                 print(f"Redis message on {channel}: {data}")
 
                 response = {"status": "error", "message": "Unknown command"}
+
+                result = None
 
                 try:
                     if channel == 'train':
@@ -212,8 +329,25 @@ class RedisHandler:
                         result = self.model_manager.evaluate_model(test_data, test_labels)
                         response = {"status": "success", "data": result}
                     elif channel == 'predict':
-                        input_data = eval(data)
-                        result = self.model_manager.predict(input_data)
+                        # Expect the `data` to be the path to an image file or base64 image
+                        image_path = 'D:/Code/Project/MediScan/test-image/1.png'
+                        result = model_manager.predict_from_path(image_path)
+                        print(result)  # This should give you either predictions or an error message
+
+                        # parts = data.split('|')
+                        # if len(parts) < 2:
+                        #     response = {"status": "error", "message": "Missing image data"}
+                        # else:
+                        #     # Check if the data is base64 or file path
+                        #     if data.startswith('data:image/'):  # Check for base64 string
+                        #         base64_image = parts[1]
+                        #         result = self.model_manager.predict_image(base64_image)
+                        #     else:
+                        #         image_path = data  # Treat as file path
+                        #         if not os.path.exists(image_path):
+                        #             response = {"status": "error", "message": f"File not found: {image_path}"}
+                        #         else:
+                        #             result = self.model_manager.predict_from_path(image_path)
                         response = {"status": "success", "data": result}
                     elif channel == 'deploy':
                         model_name = data if data else "ml_model.pkl"
@@ -226,9 +360,13 @@ class RedisHandler:
                         response = {"status": "error", "message": "Invalid command"}
                 except Exception as e:
                     response = {"status": "error", "message": f"Error processing command: {str(e)}"}
-    
+
                 # Publish response to a dedicated response channel
                 self.redis_client.publish('response', str(response))
+
+            except UnicodeDecodeError as e:
+                print(f"Error decoding message: {e}")
+                continue
 
 
 ### --- Signal Handler for Graceful Shutdown ---
