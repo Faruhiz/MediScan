@@ -12,7 +12,7 @@ from ultralytics import YOLO
 
 
 def train():
-    model = YOLO("yolo11n-seg.pt")  # Load the YOLO segmentation model
+    model = YOLO("yolo8n-seg.pt")  # Load the YOLO segmentation model
     model.train(
         data="C:/MediScan/Test_segmentation-1/data.yaml",
         epochs=100,
@@ -80,5 +80,6 @@ def evaluate_test():
     return results
 
 if __name__ == '__main__':
+    # train()
     evaluate_val()
-    evaluate_test()
+    # evaluate_test()
