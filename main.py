@@ -77,13 +77,13 @@ if __name__ == '__main__':
         tcp_server.stop_server()
         sys.exit(0)
     
-
-    print("Loading model...")
-    # Load the model
-    model_name = "yolo_best.pt"  # Replace with your saved model name
-    try:
-        model_manager.load_model(model_name)
-    except Exception as e:
-        print(f"Failed to load model: {e}")
-        sys.exit(1)
+    
+    # print("Loading model...")
+    # # Load the model
+    # model_name = "yolo_best.pt"  # Replace with your saved model name
+    # try:
+    #     model_manager.load_model(model_name)
+    # except Exception as e:
+    #     print(f"Failed to load model: {e}")
+    #     sys.exit(1)
 

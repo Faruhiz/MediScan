@@ -63,7 +63,7 @@ def train_model(mode):
 
         # ✅ ตรวจสอบว่ามีโมเดลหรือไม่
         if not trained_model_path or not os.path.exists(trained_model_path):
-            print("❌ Training completed, but no model was saved!")
+            print("Training completed, but no model was saved!")
             result_json = {"error": "Model training completed, but model file not found."}
         else:
             result_json = {
@@ -90,7 +90,7 @@ def evaluate_or_test_model(mode, trained_model_path, task):
         model = YOLO(trained_model_path)
 
         if mode == "classify":
-            metrics = model.val()
+            metrics = model.val(data=DATA_PATH_MAP[mode])
             top1_accuracy = float(metrics.top1) if metrics.top1 is not None else 0.0
             top5_accuracy = float(metrics.top5) if metrics.top5 is not None else 0.0
             

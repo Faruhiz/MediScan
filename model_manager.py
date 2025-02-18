@@ -16,26 +16,15 @@ from db_manager import DatabaseManager  # เรียกใช้ SQLite Manage
 
 
 MODEL_FOLDER = './models'
+IMAGE_FOLDER = './images'
 if not os.path.exists(MODEL_FOLDER):
     os.makedirs(MODEL_FOLDER)
 class MLModelManager:
-    def __init__(self, model_folder=MODEL_FOLDER):
+    def __init__(self, model_folder=MODEL_FOLDER, image_folder=IMAGE_FOLDER):
         self.model_folder = model_folder
+        self.image_folder = image_folder
         self.current_model = None
 
-    # def save_model(self, model_path):
-    #     """บันทึกโมเดลที่ถูกเทรนแล้วไปยังโฟลเดอร์ `./models` โดยใช้ชื่อไดนามิก"""
-    #     if not os.path.exists(model_path):
-    #         raise FileNotFoundError(f"Model not found at {model_path}")
-
-    #     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    #     saved_model_name = f"model_{timestamp}.pt"
-    #     saved_path = os.path.join(self.model_folder, saved_model_name)
-
-    #     os.makedirs(self.model_folder, exist_ok=True)
-    #     os.rename(model_path, saved_path)
-    #     print(f"✅ Model saved to: {saved_path}")
-    #     return saved_path
     def save_model(self, model_path):
         """บันทึกโมเดลที่ถูกเทรนแล้วไปยังโฟลเดอร์ `./models` โดยใช้ absolute path ที่ถูกต้อง"""
 
@@ -76,14 +65,19 @@ class MLModelManager:
         Returns:
             torch.nn.Module: The loaded PyTorch model.
         """
-        model_path = os.path.join(self.model_folder, model_name)
-        print(f"Loading model from: {model_path}")
+        model_path = os.path.join(self.model_folder, model_name).replace("\\", "/")
+        
+        # ✅ ตรวจสอบว่าไฟล์โมเดลมีอยู่จริง
         if not os.path.exists(model_path):
+            print(f"Model {model_name} not found in {self.model_folder}.")
             raise FileNotFoundError(f"Model {model_name} not found in {self.model_folder}.")
 
         try:
             print(f"Loading model: {model_path}")
-            self.current_model = YOLO(model_path)  # Use Ultralytics' YOLO to load the model
+            # ✅ เลือกอุปกรณ์ (GPU ถ้ามี)
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+            self.current_model = YOLO(model_path).to(device)  # Use Ultralytics' YOLO to load the model
             print(f"Model loaded successfully from {model_path}.")
             return self.current_model
         except Exception as e:
@@ -131,9 +125,6 @@ class MLModelManager:
             
             trained_model_path = os.path.join(save_dir, "weights", "best.pt") if save_dir else None
             
-
-            
-
             if trained_model_path and os.path.exists(trained_model_path):
                 saved_path = self.save_model(trained_model_path)
                 train_results["saved_path"] = saved_path
@@ -151,25 +142,32 @@ class MLModelManager:
                 model_type=mode,
                 file_path=saved_path if trained_model_path else "N/A"
             )
+            print(f"✅ Inserted Model ID: {model_id}")
             # ✅ ปิด DB
             db.close()
 
             return {"status": "success", "data": train_results}
 
         except Exception as e:
+            print(f"An unexpected error occurred: {str(e)}")
             return {"status": "error", "message": f"An unexpected error occurred: {str(e)}"}
 
 
-    def evaluate_model(self, mode, model_path):
+    def evaluate_model(self, mode, model_name):
         """Evaluate a specific YOLO model using yolo.py."""
-        try:
-            print(f"Evaluating YOLO {mode} model from: {model_path}")
-            
-            # ตรวจสอบว่าไฟล์โมเดลมีอยู่จริง
-            if not os.path.exists(model_path):
-                return {"error": f"Model not found at {model_path}"}
 
-            # เรียกใช้ `yolo.py` พร้อมส่ง mode และ model path
+            # ✅ กำหนดให้ชี้ไปที่ `./models` โดยอัตโนมัติ
+        model_path = os.path.join(self.model_folder, model_name).replace("\\", "/")
+
+        print(f"Evaluating YOLO {mode} model from: {model_path}")
+            
+        # ตรวจสอบว่าไฟล์โมเดลมีอยู่จริง
+        if not os.path.exists(model_path):
+            print(f"Model not found at {model_path}")
+            raise FileNotFoundError(f"Model not found at {model_path}")
+
+        # เรียกใช้ `yolo.py` พร้อมส่ง mode และ model path
+        try:
             result = subprocess.run(
                 ['python', 'yolo.py', '--mode', mode, '--task', 'evaluate', '--trained_model_path', model_path],
                 stdout=subprocess.PIPE,
@@ -184,76 +182,72 @@ class MLModelManager:
 
             # เช็คว่า subprocess รันสำเร็จหรือไม่
             if result.returncode != 0:
-                return {"error": "YOLO evaluation failed", "details": stderr}
+                raise RuntimeError(f"YOLO evaluation failed: {stderr}")
 
-            # ตรวจสอบว่าผลลัพธ์ที่ได้เป็น JSON หรือไม่
             # ✅ ค้นหา JSON Output ที่ถูกต้อง
             
             json_lines = [line for line in stdout.splitlines() if line.strip().startswith('{') and line.strip().endswith('}')]
-
+            
             if not json_lines:
-                return {"status": "error", "message": "Training completed, but could not parse JSON output from yolo.py"}
+                raise RuntimeError("Evaluation completed, but could not parse JSON output from yolo.py")
 
-            train_results = json.loads(json_lines[-1])  # ✅ ใช้ JSON บรรทัดสุดท้ายที่ print ออกมา
-            return train_results
+            eval_results = json.loads(json_lines[-1])  # ✅ ใช้ JSON บรรทัดสุดท้ายที่ print ออกมา
+            return eval_results
 
         except Exception as e:
-            return {"error": f"An unexpected error occurred: {str(e)}"}
+            print(f"An unexpected error occurred: {str(e)}")
+            raise RuntimeError(f"An unexpected error occurred during evaluation: {str(e)}")
 
+    def predict_from_path(self, image_name, confidence_threshold=0.4):
+        """
+        Run inference on an image and filter results by confidence threshold.
 
-    def predict_from_path(self, image_path):
-        """Make predictions from an image path using YOLOv5."""
+        Args:
+            image_path (str): Path to the image to be predicted.
+            confidence_threshold (float): Minimum confidence score to consider a detection.
+
+        Returns:
+            dict: Predictions or an error message.
+        """
         if not self.current_model:
-            return {"error": "Model not loaded"}
+            print("⚠️ No model loaded. Please load a model first.")
+            raise RuntimeError("⚠️ No model loaded. Please load a model first.")
+        
+        # ✅ ตรวจสอบ path ให้แน่ใจว่าเป็นรูปแบบ Unix (`/`) แม้จะรันบน Windows
+        image_path = os.path.join(self.image_folder, image_name).replace("\\", "/")
 
-        # Load and preprocess the image
+        if not os.path.exists(image_path):
+            print(f"Image not found at {image_path}")
+            raise FileNotFoundError(f"Image not found at {image_path}")
+
         try:
-            print(f"Loading image from {image_path}")
-            image = Image.open(image_path).convert('RGB')
-            image = image.resize((640, 640))  # Resize to 640x640 for YOLOv5
-            image = np.array(image) / 255.0  # Normalize to [0, 1]
-            image_tensor = torch.tensor(image).float().unsqueeze(0).permute(0, 3, 1, 2)  # Add batch dimension and correct shape
+            print(f"Predicting from Image path: {image_path}")
 
-            # If using GPU, move the tensor to CUDA
-            if torch.cuda.is_available():
-                image_tensor = image_tensor.cuda()
+            # Using GPU if available
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+            results = self.current_model.predict(source=image_path, save=True, device=device)
 
-            print(f"Image shape before prediction: {image_tensor.shape}")
+            # Filter predictions by confidence threshold
+            filtered_predictions = []
+            for box in results[0].boxes:
+                bbox = box.xyxy.tolist()[0]  # Bounding box [x1, y1, x2, y2]
+                confidence = box.conf.tolist()[0]  # Confidence score
+                class_id = int(box.cls.tolist()[0])  # Class ID
 
-            # Check the model type
-            print(f"Model type: {type(self.current_model)}")
+                if confidence >= confidence_threshold:
+                    filtered_predictions.append({
+                        "bbox": bbox,
+                        "confidence": confidence,
+                        "class_id": class_id,
+                    })
 
-            # Make prediction using YOLOv5 model
-            with torch.no_grad():
-                print("Making prediction...")
-                output = self.current_model(image_tensor)
+            # 🟢 Debug: แสดงผลลัพธ์
+            if not filtered_predictions:
+                print("⚠️ No detections found!")
 
-            # Ensure the output is a dictionary (as expected in YOLOv5)
-            if isinstance(output, dict):
-                # Extract predictions from the 'pred' key
-                predictions = output['pred'][0]  # YOLOv5 typically stores predictions in this format
-            else:
-                return {"error": "Model output is not in the expected format"}
-
-            # Filter predictions (e.g., confidence threshold of 0.5)
-            threshold = 0.5
-            detections = predictions[predictions[:, 4] > threshold]  # Filter by confidence score
-
-            # Process predictions (bounding boxes, class ids, and scores)
-            result = []
-            for det in detections:
-                bbox = det[:4]  # Bounding box [x1, y1, x2, y2]
-                confidence = det[4]  # Confidence score
-                class_id = int(det[5])  # Class ID
-                result.append({
-                    "bbox": bbox.tolist(),
-                    "confidence": confidence,
-                    "class_id": class_id
-                })
-
-            return {"predictions": result}
+            return {"status": "success", "predictions": filtered_predictions}
 
         except Exception as e:
-            print(f"Error in predict_from_path: {str(e)}")
-            return {"error": str(e)}
-        
+            print(f"Error during prediction: {str(e)}")
+            return {"error": f"An error occurred during prediction: {str(e)}"}
+    

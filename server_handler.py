@@ -24,12 +24,12 @@ class TCPServer:
     def handle_command(self, command, conn):
         """Process a single command for training, evaluating, predicting, and deploying a model."""
         response = {"error": "Unknown command"}
-
         try:
             parts = command.split('|')
             cmd_type = parts[0]  # คำสั่งหลัก เช่น train, evaluate, predict, deploy
 
             if cmd_type == 'train':
+                print("🚀 Running Training Command...")
                 if len(parts) < 2:
                     response = {"error": "Missing mode for training. Use: train|detect, train|segment, train|classify"}
                 else:
@@ -38,41 +38,51 @@ class TCPServer:
                     response = result
 
             elif cmd_type == 'evaluate':
+                print("🔍 Running Evaluation Mode...")
                 if len(parts) < 3:
                     response = {"error": "Missing required parameters. Use: evaluate|mode|model_path"}
                 else:
                     mode = parts[1].strip()
-                    model_path = parts[2].strip()
+                    model_name = parts[2].strip()
 
-                    if not os.path.exists(model_path):
-                        response = {"error": f"Model not found at {model_path}"}
-                    else:
-                        result = self.model_manager.evaluate_model(mode, model_path)
+                    try:
+                        # ✅ Call evaluate_model() and using `raise` to easily handle error
+                        result = self.model_manager.evaluate_model(mode, model_name)
                         response = {"status": "success", "data": result}
+                    except FileNotFoundError as e:
+                        response = {"error": str(e)}
+                    except RuntimeError as e:
+                        response = {"error": f"Evaluation failed: {str(e)}"}
 
             elif cmd_type == 'predict':
                 if len(parts) < 2:
                     response = {"error": "Missing image path. Use: predict|image_path"}
                 else:
-                    image_path = parts[1].strip()
-                    
-                    if not os.path.exists(image_path):
-                        response = {"error": f"File not found: {image_path}"}
-                    else:
-                        result = self.model_manager.predict_from_path(image_path)
+                    image_name = parts[1].strip()
+
+                    try:
+                        # เรียก `predict_from_path()` และใช้ `raise` ในการจัดการ error
+                        result = self.model_manager.predict_from_path(image_name)
                         response = {"status": "success", "data": result}
+                    except FileNotFoundError as e:
+                        response = {"error": str(e)}
+                    except RuntimeError as e:
+                        response = {"error": f"Prediction failed: {str(e)}"}
 
             elif cmd_type == 'deploy':
                 if len(parts) < 2:
                     response = {"error": "Missing model name. Use: deploy|model_name"}
                 else:
                     model_name = parts[1].strip()
-                    try:
+                    try:    
                         self.model_manager.load_model(model_name)
                         response = {"status": "success", "message": f"Model '{model_name}' deployed successfully"}
+                        print(response)
+                    except FileNotFoundError as e:
+                        response = {"error": str(e)}
                     except Exception as e:
                         response = {"error": f"Failed to deploy model: {str(e)}"}
-
+        
             else:
                 response = {"error": "Invalid command"}
 
@@ -139,8 +149,8 @@ class RedisHandler:
         """Listen for Redis messages and handle them."""
         pubsub = self.redis_client.pubsub()
         pubsub.subscribe(['train', 'evaluate', 'predict', 'deploy'])
-
         print("Listening for Redis messages...")
+
         for message in pubsub.listen():
             if not server_running:
                 break
@@ -160,47 +170,62 @@ class RedisHandler:
                 print(f"Redis message on {channel}: {data}")
 
                 response = {"status": "error", "message": "Unknown command"}
-
-                result = None
+                parts = data.split('|')
 
                 try:
                     if channel == 'train':
-                        result = self.model_manager.train_model()
-                        response = {"status": "success", "data": result}
+                        if len(parts) < 2:
+                            response = {"status": "error", "message": "Missing mode for training. Use: train|detect, train|segment, train|classify"}
+                        else:
+                            mode = parts[1].strip()
+                            result = self.model_manager.train_model(mode)
+                            response = {"status": "success", "data": result}
+
                     elif channel == 'evaluate':
-                        # Parse the incoming data for evaluate
-                        try:
-                            parts = data.split('|')  # Split the data string using '|'
-                            if len(parts) < 1:
-                                raise ValueError("Model path is required for evaluation.")
+                        if len(parts) < 3:
+                            response = {"status": "error", "message": "Missing required parameters. Use: evaluate|mode|model_path"}
+                        else:
+                            mode = parts[1].strip()
+                            model_name = parts[2].strip()
 
-                            model_path = parts[0].strip()  # First part is the model path
-
-                            # Check if the model path exists
-                            if not os.path.exists(model_path):
-                                print(f"Model not found at {model_path}")
-                                response = {"status": "error", "message": f"Model not found at {model_path}"}
-                    
-                            else:
-                                print(f"Evaluating model: {model_path} ")
-                                result = self.model_manager.evaluate_model(model_path=model_path)
+                            try:
+                                # ✅ เรียก `evaluate_model()` และใช้ `raise` ในการจัดการ error
+                                result = self.model_manager.evaluate_model(mode, model_name)
                                 response = {"status": "success", "data": result}
-                        except Exception as e:
-                            response = {"status": "error", "message": f"Error during evaluation: {str(e)}"}
+                            except FileNotFoundError as e:
+                                response = {"error": str(e)}
+                            except RuntimeError as e:
+                                response = {"error": f"Evaluation failed: {str(e)}"}
+
                     elif channel == 'predict':
-                        # Expect the `data` to be the path to an image file or base64 image
-                        
-                        image_path = 'D:/Code/Project/MediScan/test-image/1.png'
-                        result = model_manager.predict_from_path(image_path)
-                        print(result)  # This should give you either predictions or an error message
-                        response = {"status": "success", "data": result}
+                        if len(parts) < 2:
+                            response = {"status": "error", "message": "Missing image path. Use: predict|image_path"}
+                        else:
+                            image_name = parts[1].strip()
+                            
+                            try:
+                                # เรียก `predict_from_path()` และใช้ `raise` ในการจัดการ error
+                                result = self.model_manager.predict_from_path(image_name)
+                                response = {"status": "success", "data": result}
+                            except FileNotFoundError as e:
+                                response = {"error": str(e)}
+                            except RuntimeError as e:
+                                response = {"error": f"Prediction failed: {str(e)}"}
+                            
                     elif channel == 'deploy':
-                        model_name = data if data else "ml_model.pkl"
-                        try:
-                            self.model_manager.load_model(model_name)
-                            response = {"status": "success", "message": f"Model '{model_name}' deployed successfully"}
-                        except Exception as e:
-                            response = {"status": "error", "message": f"Failed to deploy model: {str(e)}"}
+                        if len(parts) < 2:
+                            response = {"status": "error", "message": "Missing model name. Use: deploy|model_name"}
+                        else:
+                            model_name = parts[1].strip()
+                            try:    
+                                self.model_manager.load_model(model_name)
+                                response = {"status": "success", "message": f"Model '{model_name}' deployed successfully"}
+                                print(response)
+                            except FileNotFoundError as e:
+                                response = {"error": str(e)}
+                            except Exception as e:
+                                response = {"error": f"Failed to deploy model: {str(e)}"}
+                           
                     else:
                         response = {"status": "error", "message": "Invalid command"}
                 except Exception as e:
