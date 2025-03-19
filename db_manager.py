@@ -1,32 +1,39 @@
 import sqlite3
+import os
 from datetime import datetime
 
-DB_PATH = "db/medi_db.db"  # เปลี่ยนเป็นตำแหน่งไฟล์ SQLite ของคุณ
-
 class DatabaseManager:
-    def __init__(self, db_path=DB_PATH):
-        """เชื่อมต่อกับ SQLite Database"""
-        self.conn = sqlite3.connect(db_path, check_same_thread=False)
-        self.cursor = self.conn.cursor()
-    
-    def insert_model(self, project_id, name, version, model_type, file_path):
-        """บันทึกโมเดลที่เทรนเสร็จลงใน DB"""
-        self.cursor.execute("""
-            INSERT INTO models (project_id, name, version, type, file_path)
-            VALUES (?, ?, ?, ?, ?)
-        """, (project_id, name, version, model_type, file_path))
-        self.conn.commit()
-        return self.cursor.lastrowid
+    def __init__(self, base_project_dir, base_workspace_dir):
+        """🔍 สร้าง Database Manager สำหรับ Project ID (PID)"""
+        self.base_project_dir = base_project_dir
+        self.base_workspace_dir = base_workspace_dir
 
-    def insert_evaluation(self, model_id, project_id, metrics_json):
-        """บันทึกผลการ Evaluate Model"""
-        self.cursor.execute("""
-            INSERT INTO evaluations (model_id, project_id, metrics)
-            VALUES (?, ?, ?)
-        """, (model_id, project_id, metrics_json))
-        self.conn.commit()
-        return self.cursor.lastrowid
+    def get_db_path(self, pid):
+        """🔍 สร้าง path ไปยัง database ของ project"""
+        return os.path.join(self.base_project_dir, pid, "project.db")
 
-    def close(self):
-        """ปิดการเชื่อมต่อ DB"""
-        self.conn.close()
+    def insert_model(self, pid, mode, model_path):
+        """✅ เพิ่มโมเดลใหม่ลงใน database และคืนค่า `model_id`"""
+        db_path = self.get_db_path(pid)
+
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+
+        # ✅ สร้างตารางถ้ายังไม่มี
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS models (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            mode TEXT NOT NULL,
+            model_path TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """)
+
+        # ✅ แทรกข้อมูลโมเดลใหม่
+        cursor.execute("INSERT INTO models (mode, model_path) VALUES (?, ?)", (mode, model_path))
+        model_id = cursor.lastrowid  # ✅ ดึง `model_id` ที่เพิ่มล่าสุด
+
+        conn.commit()
+        conn.close()
+
+        return model_id
