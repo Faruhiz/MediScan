@@ -5,6 +5,8 @@ import json
 import argparse
 from ultralytics import YOLO
 import numpy as np
+from io import StringIO
+import sys
 
 def parse_arguments():
     """Parse command-line arguments."""
@@ -39,29 +41,32 @@ def train_model(mode,data_path):
         if mode == "classify":
             results = model.train(
                 data=data_path,  
-                epochs=50,
+                epochs=10,
                 imgsz=224,
                 batch=16,
                 amp=False
             )
         else:
-            print("data_path: ",data_path)
             results = model.train(
                 data=data_path,
-                epochs=100,
+                epochs=10,
                 imgsz=640,
                 batch=16,
                 amp=False
             )
 
-        print("✅ YOLO training completed!")
+        print("\n✅ YOLO training completed!")
+        print("===== YOLO Training Result Summary =====")
+
+        # แสดงแค่ 20 บรรทัดสุดท้ายของ results
+        result_str_lines = str(results).split('\n')
+        for line in result_str_lines[-10:]:
+            print(line)
 
         # ใช้ results.save_dir เพื่อหา path ที่ถูกต้อง
         save_dir = results.save_dir if hasattr(results, "save_dir") else None
         if save_dir:
-            best_model_path = os.path.join(str(save_dir), "weights", "best.pt")
-            last_model_path = os.path.join(str(save_dir), "weights", "last.pt")
-            trained_model_path = best_model_path if os.path.exists(last_model_path) else best_model_path
+            trained_model_path = os.path.join(str(save_dir), "weights", "best.pt")
             result_dir = str(save_dir)
         else:
             trained_model_path = None
@@ -70,17 +75,50 @@ def train_model(mode,data_path):
         # ตรวจสอบว่ามีโมเดลหรือไม่
         if not trained_model_path or not os.path.exists(trained_model_path):
             print("Training completed, but no model was saved!")
-            result_json = {"error": "Model training completed, but model file not found."}
-        else:
-            result_json = {
-                "message": "Training completed successfully",
-                "mode": mode,
-                "model_path": trained_model_path,
-                "result_dir": result_dir
-            }
+            return {"error": "Model training completed, but model file not found."}
+        
+        result_dict = getattr(results, 'results_dict', {})
+        class_names = getattr(results, 'names', {})
+        print("Class Names from results.names:", class_names)
+
+        grouped_metrics = {}
+        other_metrics = {}
+
+        label_map = {}
+        current_class_index = 0
+
+        for key in sorted(result_dict.keys()):
+            match = re.search(r"metrics/(.+?)\\((.+?)\\)", key)
+            if match:
+                metric_type = match.group(1)
+                class_token = match.group(2)
+
+                if class_token not in label_map:
+                    label_map[class_token] = current_class_index
+                    current_class_index += 1
+
+                class_index = label_map[class_token]
+                class_label = class_names.get(class_index, f"class_{class_index}")
+
+                if class_label not in grouped_metrics:
+                    grouped_metrics[class_label] = {}
+                grouped_metrics[class_label][metric_type] = round(result_dict[key], 4)
+            else:
+                other_metrics[key] = round(result_dict[key], 4) if isinstance(result_dict[key], (int, float)) else result_dict[key]
+
+        # Sort class metrics by class index
+        sorted_metrics = {k: grouped_metrics[k] for k in sorted(grouped_metrics, key=lambda x: list(class_names.values()).index(x) if x in class_names.values() else float('inf'))}
+
+        result_json = {
+            "message": "Training completed successfully",
+            "mode": mode,
+            "model_path": trained_model_path,
+            "result_dir": result_dir,
+            "validation_metrics": {**sorted_metrics, **other_metrics}
+        }
 
         # Print JSON เป็นบรรทัดสุดท้าย
-        print(json.dumps(result_json))
+        print(json.dumps(result_json, indent=2))
         return result_json
 
     except Exception as e:
