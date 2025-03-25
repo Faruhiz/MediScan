@@ -59,9 +59,9 @@ def train_model(mode,data_path):
         print("===== YOLO Training Result Summary =====")
 
         # แสดงแค่ 20 บรรทัดสุดท้ายของ results
-        result_str_lines = str(results).split('\n')
-        for line in result_str_lines[-10:]:
-            print(line)
+        # result_str_lines = str(results).split('\n')
+        # for line in result_str_lines[-10:]:
+        #     print(line)
 
         # ใช้ results.save_dir เพื่อหา path ที่ถูกต้อง
         save_dir = results.save_dir if hasattr(results, "save_dir") else None
@@ -83,42 +83,47 @@ def train_model(mode,data_path):
 
         grouped_metrics = {}
         other_metrics = {}
+        index_map = {}
+        class_tokens = set()
 
-        label_map = {}
-        current_class_index = 0
-
-        for key in sorted(result_dict.keys()):
-            match = re.search(r"metrics/(.+?)\\((.+?)\\)", key)
+        for key in result_dict:
+            match = re.match(r"metrics/([^()]+)\(([^()]+)\)", key)
             if match:
-                metric_type = match.group(1)
-                class_token = match.group(2)
+                _, token = match.groups()
+                class_tokens.add(token)
 
-                if class_token not in label_map:
-                    label_map[class_token] = current_class_index
-                    current_class_index += 1
+        sorted_tokens = sorted(class_tokens)
+        for idx, token in enumerate(sorted_tokens):
+            index_map[token] = idx
 
-                class_index = label_map[class_token]
-                class_label = class_names.get(class_index, f"class_{class_index}")
-
+        for key, value in result_dict.items():
+            match = re.match(r"metrics/([^()]+)\(([^()]+)\)", key)
+            if match:
+                metric, token = match.groups()
+                class_idx = index_map.get(token)
+                class_label = class_names.get(class_idx, f"class_{class_idx}")
                 if class_label not in grouped_metrics:
                     grouped_metrics[class_label] = {}
-                grouped_metrics[class_label][metric_type] = round(result_dict[key], 4)
+                grouped_metrics[class_label][metric] = round(value, 4)
             else:
-                other_metrics[key] = round(result_dict[key], 4) if isinstance(result_dict[key], (int, float)) else result_dict[key]
+                other_metrics[key] = round(value, 4) if isinstance(value, (float, int)) else value
 
-        # Sort class metrics by class index
-        sorted_metrics = {k: grouped_metrics[k] for k in sorted(grouped_metrics, key=lambda x: list(class_names.values()).index(x) if x in class_names.values() else float('inf'))}
+        for label in grouped_metrics:
+            token = sorted_tokens[list(class_names.values()).index(label)] if label in class_names.values() else None
+            for key, value in other_metrics.items():
+                if token and f"({token})" in key and "mAP50-95" in key:
+                    grouped_metrics[label]["mAP50-95"] = value
 
         result_json = {
             "message": "Training completed successfully",
             "mode": mode,
             "model_path": trained_model_path,
             "result_dir": result_dir,
-            "validation_metrics": {**sorted_metrics, **other_metrics}
+            "validation_metrics": grouped_metrics
         }
-
+        
         # Print JSON เป็นบรรทัดสุดท้าย
-        print(json.dumps(result_json, indent=2))
+        print(json.dumps(result_json))
         return result_json
 
     except Exception as e:

@@ -13,7 +13,7 @@ class DatabaseManager:
         """🔍 สร้าง path ไปยัง database ของ project"""
         return os.path.join(self.base_project_dir, pid, "db.db")
 
-    def insert_model(self, pid, mode, model_path):
+    def insert_model(self, pid, mode, model_path , validation_metrics):
         """✅ เพิ่มโมเดลใหม่ลงใน database และคืนค่า `model_id`"""
         db_path = self.get_db_path(pid)
 
@@ -26,12 +26,19 @@ class DatabaseManager:
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             mode TEXT NOT NULL,
             model_path TEXT NOT NULL,
+            validation_metrics TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         """)
 
+        # ✅ แปลง metrics เป็น JSON string (ถ้ามี)
+        metrics_json = json.dumps(validation_metrics, ensure_ascii=False) if validation_metrics else None
+        
         # ✅ แทรกข้อมูลโมเดลใหม่
-        cursor.execute("INSERT INTO models (mode, model_path) VALUES (?, ?)", (mode, model_path))
+        cursor.execute("""
+            INSERT INTO models (mode, model_path, validation_metrics)
+            VALUES (?, ?, ?)
+        """, (mode, model_path, metrics_json))
         model_id = cursor.lastrowid  # ✅ ดึง `model_id` ที่เพิ่มล่าสุด
 
         conn.commit()

@@ -50,7 +50,7 @@ class MLModelManager:
 
         return True
 
-    def save_model(self, pid, mode, result_dir ,model_path, model_name):
+    def save_model(self, pid, mode, result_dir ,model_path, model_name, validation_metrics):
         """✅ บันทึกโมเดลและอัปเดต Database"""
         
         project_path = os.path.join(BASE_PROJECT_DIR,  pid,"models",model_name)
@@ -75,14 +75,15 @@ class MLModelManager:
             print(f"⚠️ Model file not found: {model_path} (Skipping copy)")
 
         # ✅ บันทึก path ลงใน Database
-        model_id = self.db.insert_model(pid, mode, project_path)
+        model_id = self.db.insert_model(pid, mode, project_path , validation_metrics)
 
         return {
             "status": "success",
             "message": "Training results and model copied successfully",
             "train_output_path": train_output_path,
             "model_path": final_model_path,
-            "model_name": model_name
+            "model_name": model_name,
+            "validation_metrics": validation_metrics
         }
 
         
@@ -136,8 +137,6 @@ class MLModelManager:
         if not os.path.exists(project_path):
             raise FileNotFoundError(f"❌ Project '{pid}' not found at {project_path}")
 
-
-
         if mode == "classify":
             data_path = os.path.join(project_path, "classification")  # ชี้ไปที่โฟลเดอร์
         else:
@@ -170,6 +169,7 @@ class MLModelManager:
 
             # ✅ ค้นหา JSON Output ที่เป็นบรรทัดสุดท้าย
             json_lines = [line for line in stdout.splitlines() if line.strip().startswith('{') and line.strip().endswith('}')]
+
             if not json_lines:
                 raise RuntimeError("❌ No valid JSON output found from yolo.py!")
 
@@ -183,12 +183,13 @@ class MLModelManager:
 
             result_dir = train_results.get("result_dir")
             model_path = train_results.get("model_path")
+            validation_metrics = train_results.get("validation_metrics", {})
 
             if not result_dir or not model_path:
                 raise RuntimeError("❌ Training completed but result directory or model path not found.")
             
             # ✅ บันทึกโมเดลและอัปเดต DB
-            save_result = self.save_model(pid , mode, result_dir , model_path, model_name)
+            save_result = self.save_model(pid , mode, result_dir , model_path, model_name , validation_metrics)
             
             return save_result
 
@@ -371,21 +372,21 @@ class MLModelManager:
             return {"error": f"An error occurred during prediction: {str(e)}"}
 if __name__ == "__main__":
     # 🔥 ทดสอบ Training
-    # pid = "project_001"  # เปลี่ยนเป็นค่า PID ที่ต้องการ
-    # mode = "classify"  # เปลี่ยนเป็น mode ที่ต้องการ ('detect', 'segment', 'classify')
+    pid = "project_001"  # เปลี่ยนเป็นค่า PID ที่ต้องการ
+    mode = "segment"  # เปลี่ยนเป็น mode ที่ต้องการ ('detect', 'segment', 'classify')
 
-    # model_manager = MLModelManager()
+    model_manager = MLModelManager()
 
     # print(f"🚀 Starting training for PID: {pid}, Mode: {mode}")
-    # train_results = model_manager.train_model(pid, mode)
+    train_results = model_manager.train_model(pid, mode,"Testing_model")
 
     # ทดสอบ load_model
-    model_manager = MLModelManager()
-    train_results = model = model_manager.load_model("project_001", "model_001")
-
-    # ทดสอบ predict_model
     # model_manager = MLModelManager()
-    train_results = model = model_manager.predict_from_path("project_001","image_001")
+    # train_results = model = model_manager.load_model("project_001", "model_001")
+
+    # # ทดสอบ predict_model
+    # # model_manager = MLModelManager()
+    # train_results = model = model_manager.predict_from_path("project_001","image_001")
 
     # ทดสอบ save_model
     # model_manager = MLModelManager()
