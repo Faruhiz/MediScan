@@ -81,8 +81,8 @@ def prepare_workspace(pid, mode):
         # Shuffle and split
         random.shuffle(image_label_pairs)
         total = len(image_label_pairs)
-        val_size = int(total * 0.15)
-        test_size = int(total * 0.15)
+        val_size = int(total * 0.3)
+        test_size = int(total * 0.3)
         train_size = total - val_size - test_size
 
         splits = {
