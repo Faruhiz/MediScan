@@ -9,13 +9,13 @@ class DatabaseManager:
         self.base_project_dir = base_project_dir
         self.base_workspace_dir = base_workspace_dir
 
-    def get_db_path(self, pid):
+    def get_db_path(self, project_id):
         """🔍 สร้าง path ไปยัง database ของ project"""
-        return os.path.join(self.base_project_dir, pid, "db.db")
+        return os.path.join(self.base_project_dir, project_id, "db.db")
 
-    def insert_model(self, pid, mode, model_path , validation_metrics):
+    def insert_model(self, project_id, model_name , mode, model_path , validation_metrics):
         """✅ เพิ่มโมเดลใหม่ลงใน database และคืนค่า `model_id`"""
-        db_path = self.get_db_path(pid)
+        db_path = self.get_db_path(project_id)
 
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
@@ -23,7 +23,8 @@ class DatabaseManager:
         # ✅ สร้างตารางถ้ายังไม่มี
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS models (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            model_id TEXT PRIMARY KEY,
+            model_name TEXT NOT NULL,
             mode TEXT NOT NULL,
             model_path TEXT NOT NULL,
             validation_metrics TEXT,
@@ -31,25 +32,28 @@ class DatabaseManager:
         )
         """)
 
+        # ✅ สร้าง model_id ด้วย modelname_DDMMYY_HHMMSS
+        timestamp = datetime.now().strftime("%d_%m_%y_%H_%M_%S")
+        model_id = f"{model_name}_{timestamp}"
+        print("Model id: "+model_id)
         # ✅ แปลง metrics เป็น JSON string (ถ้ามี)
         metrics_json = json.dumps(validation_metrics, ensure_ascii=False) if validation_metrics else None
         
         # ✅ แทรกข้อมูลโมเดลใหม่
         cursor.execute("""
-            INSERT INTO models (mode, model_path, validation_metrics)
-            VALUES (?, ?, ?)
-        """, (mode, model_path, metrics_json))
-        model_id = cursor.lastrowid  # ✅ ดึง `model_id` ที่เพิ่มล่าสุด
+            INSERT INTO models (model_id, model_name, mode, model_path, validation_metrics)
+            VALUES (?, ?, ?, ?, ?)
+        """, (model_id, model_name, mode, model_path, metrics_json))
 
         conn.commit()
         conn.close()
 
         return model_id
-    def insert_prediction(self, pid, image_name, model_name, predict_result, prediction_data):
+    def insert_prediction(self, project_id, image_name, model_name, predict_result, prediction_data):
         """
         ✅ บันทึกผลการพยากรณ์ลงในตาราง predict
         """
-        db_path = self.get_db_path(pid)
+        db_path = self.get_db_path(project_id)
 
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
@@ -59,7 +63,7 @@ class DatabaseManager:
         CREATE TABLE IF NOT EXISTS predict (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             image_name TEXT NOT NULL,
-            pid TEXT NOT NULL,
+            project_id TEXT NOT NULL,
             model_name TEXT NOT NULL,
             predict_result TEXT NOT NULL,
             prediction_json TEXT NOT NULL,
@@ -72,9 +76,9 @@ class DatabaseManager:
 
         # ✅ บันทึกลง database
         cursor.execute("""
-            INSERT INTO predict (image_name, model_name, pid, predict_result, prediction_json)
+            INSERT INTO predict (image_name, project_id, model_name, predict_result, prediction_json)
             VALUES (?, ?, ?, ?, ?)
-        """, (image_name, model_name, pid, predict_result, prediction_json))
+        """, (image_name, project_id, model_name, predict_result, prediction_json))
 
         conn.commit()
         conn.close()

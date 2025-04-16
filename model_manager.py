@@ -26,19 +26,19 @@ class MLModelManager:
         self.db = DatabaseManager(BASE_PROJECT_DIR, BASE_WORKSPACE_DIR)
         self.model_name = None
     
-    def prepare_workspace(self, pid, mode):
+    def prepare_workspace(self, project_id, mode):
         """🔍 เรียก `prepare_workspace.py` พร้อมส่ง `BASE_PROJECT_DIR` และ `BASE_WORKSPACE_DIR`"""
         
-        project_source_path = os.path.join(BASE_PROJECT_DIR, pid)
+        project_source_path = os.path.join(BASE_PROJECT_DIR, project_id)
 
         # ✅ **เช็คว่าโปรเจคมีอยู่จริงใน `MedSight_Project`**
         if not os.path.exists(project_source_path):
-            raise FileNotFoundError(f"❌ Project '{pid}' not found at {project_source_path}")
+            raise FileNotFoundError(f"❌ Project '{project_id}' not found at {project_source_path}")
 
-        print(f"🚀 Running `prepare_workspace.py` for PID: {pid}")
+        print(f"🚀 Running `prepare_workspace.py` for PID: {project_id}")
 
         result = subprocess.run(
-            ['python', 'prepare_workspace.py', pid , mode],
+            ['python', 'prepare_workspace.py', project_id , mode],
             capture_output=True,
             text=True
         )
@@ -50,15 +50,15 @@ class MLModelManager:
 
         return True
 
-    def save_model(self, pid, mode, result_dir ,model_path, model_name, validation_metrics):
+    def save_model(self, project_id , model_name , mode , result_dir , model_path , validation_metrics):
         """✅ บันทึกโมเดลและอัปเดต Database"""
         
-        project_path = os.path.join(BASE_PROJECT_DIR,  pid,"models",model_name)
+        project_path = os.path.join(BASE_PROJECT_DIR,  project_id,"models",model_name)
         os.makedirs(project_path, exist_ok=True)  # ✅ สร้างโฟลเดอร์ถ้ายังไม่มี  
 
         # ✅ ตรวจสอบว่าโฟลเดอร์ Training Result มีจริงไหม
         if not os.path.exists(project_path):
-            raise FileNotFoundError(f"❌ Project '{pid}' not found at {project_path}")
+            raise FileNotFoundError(f"❌ Project '{project_id}' not found at {project_path}")
         
         # ✅ เปลี่ยนชื่อโฟลเดอร์ Training Result → `train_{mode}`
         train_output_path = os.path.join(project_path, "training_result")
@@ -75,11 +75,12 @@ class MLModelManager:
             print(f"⚠️ Model file not found: {model_path} (Skipping copy)")
 
         # ✅ บันทึก path ลงใน Database
-        model_id = self.db.insert_model(pid, mode, project_path , validation_metrics)
-
+        model_id = self.db.insert_model(project_id, model_name , mode, project_path , validation_metrics)
+        
         return {
             "status": "success",
             "message": "Training results and model copied successfully",
+            "model_id": model_id,
             "train_output_path": train_output_path,
             "model_path": final_model_path,
             "model_name": model_name,
@@ -87,7 +88,7 @@ class MLModelManager:
         }
 
         
-    def load_model(self, pid, model_name):
+    def load_model(self, project_id, model_name):
         """
         Load a specific model from the ./models folder.
 
@@ -97,7 +98,7 @@ class MLModelManager:
         Returns:
             torch.nn.Module: The loaded PyTorch model.
         """
-        model_path = os.path.join(BASE_PROJECT_DIR, pid, "models", model_name, "model.pt").replace("\\", "/")
+        model_path = os.path.join(BASE_PROJECT_DIR, project_id, "models", model_name, "model.pt").replace("\\", "/")
         self.model_name = model_name
         
         # ตรวจสอบว่าไฟล์โมเดลมีอยู่จริง
@@ -122,20 +123,20 @@ class MLModelManager:
         except Exception as e:
             raise RuntimeError(f"Error loading model {model_path}: {str(e)}")
 
-    def train_model(self, pid ,mode, model_name):
+    def train_model(self, project_id ,model_name , mode):
         """Train the YOLO model using yolo.py with specific mode (detect, segment, classify)."""
 
         if mode not in ["detect", "segment", "classify"]:
             raise ValueError(f"Invalid mode '{mode}'. Use: detect, segment, classify")
         
         # ✅ **เรียก `prepare_workspace.py` ก่อนเทรน**
-        self.prepare_workspace(pid , mode)
+        self.prepare_workspace(project_id , mode)
         
-        project_path = os.path.join(BASE_WORKSPACE_DIR, pid)
+        project_path = os.path.join(BASE_WORKSPACE_DIR, project_id)
 
         # ✅ เช็คว่า project_path มีอยู่จริงไหม
         if not os.path.exists(project_path):
-            raise FileNotFoundError(f"❌ Project '{pid}' not found at {project_path}")
+            raise FileNotFoundError(f"❌ Project '{project_id}' not found at {project_path}")
 
         if mode == "classify":
             data_path = os.path.join(project_path, "classification")  # ชี้ไปที่โฟลเดอร์
@@ -147,8 +148,8 @@ class MLModelManager:
             raise FileNotFoundError(f"❌ data.yaml not found in {data_path }")
         
         print("📂 Project Path:", project_path+"\n Data Path: ",data_path )
-        print(f"🚀 Starting YOLO {mode} for PID: {pid}")
-
+        print(f"🚀 Starting YOLO {mode} for PID: {project_id}")
+        print(f" Data Path: ",data_path )
         try:
             # ✅ เรียก YOLO จริง
             result = subprocess.run(
@@ -189,7 +190,7 @@ class MLModelManager:
                 raise RuntimeError("❌ Training completed but result directory or model path not found.")
             
             # ✅ บันทึกโมเดลและอัปเดต DB
-            save_result = self.save_model(pid , mode, result_dir , model_path, model_name , validation_metrics)
+            save_result = self.save_model(project_id , model_name , mode , result_dir , model_path , validation_metrics)
             
             return save_result
 
@@ -198,17 +199,25 @@ class MLModelManager:
             return {"status": "error", "message": f"An unexpected error occurred: {str(e)}"}
 
 
-    def evaluate_model(self, pid , model_id, mode , eval_type):
+    def evaluate_model(self, project_id , model_name, mode , eval_type="test"):
         """Evaluate a specific YOLO model using yolo.py."""
         # ตรวจสอบว่า eval_type ถูกต้องหรือไม่
         if eval_type not in ["val", "test"]:
             raise ValueError("Invalid evaluation type. Use 'val' or 'test'.")
         
-        # หา path ของโมเดลใน `MedSight_Project/pid`
-        model_name = f"model_{mode}_{model_id}.pt"
-        model_path = os.path.join(BASE_PROJECT_DIR, pid, model_name).replace("\\", "/")
+        # หา path ของโมเดลใน `MedSight_Project/project_id`
 
-        print(f"🔍 Evaluating YOLO {mode} model (ID: {model_id}) for project {pid} using {eval_type} set")
+        model_path = os.path.join(BASE_PROJECT_DIR, project_id, "models", model_name, "model.pt").replace("\\", "/")
+
+        # ✅ กำหนด path ของ data.yaml/classification ขึ้นอยู่กับ mode
+        if mode in ["segment", "detect"]:
+            data_path = os.path.join(BASE_WORKSPACE_DIR, project_id, "data.yaml").replace("\\", "/")
+        elif mode == "classify":
+            data_path = os.path.join(BASE_WORKSPACE_DIR, project_id, "classification").replace("\\", "/")
+        else:
+            raise ValueError("Invalid mode. Choose from: segment, detect, classify.")
+
+        print(f"🔍 Evaluating YOLO {mode} model (ID: {model_name}) for project {project_id} using {eval_type} set")
             
         # ตรวจสอบว่าไฟล์โมเดลมีอยู่จริง
         if not os.path.exists(model_path):
@@ -218,7 +227,7 @@ class MLModelManager:
         # เรียกใช้ `yolo.py` พร้อมส่ง mode และ model path
         try:
             result = subprocess.run(
-                ['python', 'yolo.py', '--mode', mode, '--task', 'evaluate', '--trained_model_path', model_path,'--eval_type', eval_type],
+                ['python', 'yolo.py', '--mode', mode, '--task', 'evaluate', '--trained_model_path', model_path,'--data', data_path,'--eval_type', eval_type],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE
             )
@@ -247,8 +256,9 @@ class MLModelManager:
             print(f"An unexpected error occurred: {str(e)}")
             raise RuntimeError(f"An unexpected error occurred during evaluation: {str(e)}")
 
-    def predict_from_path(self, pid , image_name, confidence_threshold=0.2):
-
+    def predict_from_path(self, project_id , image_name, confidence_threshold=0.2):
+        
+        print("Model name: "+self.model_name)
         if not self.current_model:
             raise RuntimeError("⚠️ No model loaded. Please load a model first.")
 
@@ -349,8 +359,8 @@ class MLModelManager:
             # ✅ ใช้ค่าเฉลี่ยของ confidence score ของ class ที่ตรวจพบมากที่สุด
             predict_result = max(confidence_scores, key=lambda k: sum(confidence_scores[k]) / len(confidence_scores[k]))
             message = "Detection completed."
-            self.db.insert_prediction(
-                pid=pid,
+            print(self.db.insert_prediction(
+                project_id=project_id,
                 image_name=image_name,
                 model_name=self.model_name,
                 predict_result=predict_result,
@@ -358,7 +368,7 @@ class MLModelManager:
                     "confidence_scores": confidence_scores,
                     "bounding_boxes": bounding_boxes
                 }
-            )
+            ))
             return {
                 "status": "success",
                 "message": message,
@@ -372,13 +382,13 @@ class MLModelManager:
             return {"error": f"An error occurred during prediction: {str(e)}"}
 if __name__ == "__main__":
     # 🔥 ทดสอบ Training
-    pid = "project_001"  # เปลี่ยนเป็นค่า PID ที่ต้องการ
+    project_id = "project_001"  # เปลี่ยนเป็นค่า PID ที่ต้องการ
     mode = "segment"  # เปลี่ยนเป็น mode ที่ต้องการ ('detect', 'segment', 'classify')
 
     model_manager = MLModelManager()
 
-    # print(f"🚀 Starting training for PID: {pid}, Mode: {mode}")
-    train_results = model_manager.train_model(pid, mode,"Testing_model")
+    # print(f"🚀 Starting training for PID: {project_id}, Mode: {mode}")
+    train_results = model_manager.train_model(project_id, "qwww" ,mode)
 
     # ทดสอบ load_model
     # model_manager = MLModelManager()
@@ -392,4 +402,12 @@ if __name__ == "__main__":
     # model_manager = MLModelManager()
     # train_results = model = model_manager.save_model("project_001", "segment", "runs\\segment\\train70","runs\\segment\\train70\\weights\\best.pt","model_001")
 
-    print(train_results)
+    # evaluate
+    # project_id = "project_001"            # 🔧 เปลี่ยนเป็นโปรเจกต์ของคุณ
+    # model_name = "segment"                # 🔧 เปลี่ยนเป็นชื่อโมเดลที่ต้องการ
+    # mode = "segment"                      # 🔧 เลือกจาก: "segment", "detect", "classify"
+
+    # model_manager = MLModelManager()
+
+    # result = model_manager.evaluate_model(project_id=project_id, model_name=model_name, mode=mode)
+    # print("Evaluation completed."+json.dumps(result, indent=2))

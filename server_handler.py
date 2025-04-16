@@ -10,13 +10,12 @@ server_running = True
 tcp_server = None  
 
 class TCPServer:
-    def __init__(self, host='0.0.0.0', port=5001, model_manager=None):
+    def __init__(self, host='0.0.0.0', port=5001):
         self.host = host
         self.port = port
-        self.model_manager = model_manager
         self.server_socket = None
 
-    def handle_command(self, command, conn):
+    def handle_command(self, command, conn, model_manager):
         """📌 ดำเนินการตามคำสั่งที่ได้รับ"""
         response = {"error": "Unknown command"}
 
@@ -30,44 +29,51 @@ class TCPServer:
                 return
             
             cmd_type = data.get("command", "").lower()
-            p_id = data.get("p_id", "").strip()  # รับค่า project_id
+            project_id = data.get("project_id", "").strip()  # รับค่า project_id
             
-            # ✅ ตรวจสอบว่า p_id ถูกส่งมาหรือไม่
-            if not p_id:
-                response = {"error": "Missing project ID (p_id). Use: {'command': 'train', 'p_id': 'proj_001'}"}
+            # ✅ ตรวจสอบว่า project_id ถูกส่งมาหรือไม่
+            if not project_id:
+                response = {"error": "Missing project ID (project_id)."}
                 conn.sendall((json.dumps(response) + "\n").encode('utf-8'))
                 return
 
             if cmd_type == 'train':
-                print(f"🚀 Running Training Command for project: {p_id}")
+                # print(f"🚀 Running Training Command for project: {project_id}")
+                model_name = data.get("model_name")
                 mode = data.get("mode")
-
-                if not mode:
-                    response = {"error": "Missing mode for training. Use: {'command': 'train', 'mode': 'detect/segment/classify', 'p_id': 'proj_001'}"}
+                
+                if not model_name:
+                    response = {"error": "Missing model_name for training."}
+                elif mode not in ["segment", "detect", "classify"]:
+                    response = {"error": f"Invalid mode '{mode}'. Choose from: segment, detect, classify."}
                 else:
-                    try:
-                        result = self.model_manager.train_model(p_id, mode)  # ✅ ส่ง `p_id` ไป train_model
-                        response = {"status": "success", "data": result}
-                    except (ValueError, RuntimeError) as e:
-                        response = {"error": str(e)}
-                    except Exception as e:
-                        response = {"error": f"Unexpected error: {str(e)}"}
+                    def background_train():
+                        try:
+                            result = model_manager.train_model(project_id, model_name, mode)
+                            response = {"status": "success", "data": result}
+                        except Exception as e:
+                            response = {"error": str(e)}
+                        conn.sendall((json.dumps(response) + "\n").encode('utf-8'))
+
+                    threading.Thread(target=background_train, daemon=True).start()
+                    return
 
                 print(f"📌 Training Response: {response}")
 
             elif cmd_type == 'evaluate':
-                print(f"🔍 Running Evaluation for project: {p_id}")
-                eval_type = data.get("eval_type", "test").lower()
-                mode = data.get("mode")
-                model_name = data.get("model_name")
+                print(f"🔍 Running Evaluation for project: {project_id}")
 
-                if not mode or not model_name:
-                    response = {"error": "Missing required parameters. Use: {'command': 'evaluate', 'eval_type': 'val/test', 'mode': 'classify', 'model_name': 'model.pt'}"}
-                elif eval_type not in ["val", "test"]:
-                    response = {"error": "Invalid evaluation type. Use 'val' or 'test'."}
+                model_name = data.get("model_name")
+                mode = data.get("mode")
+                eval_type = data.get("eval_type", "test").lower()  # ✅ ตั้งค่า default เป็น 'test' หากไม่ได้ส่งมา
+
+                if not model_name:
+                    response = {"error": "Missing model_name for evaluation."}
+                elif not mode:
+                    response = {"error": "Missing mode for evaluation."}
                 else:
                     try:
-                        result = self.model_manager.evaluate_model(p_id, mode, model_name, eval_type)  # ✅ ส่ง `p_id`
+                        result = model_manager.evaluate_model(project_id, model_name, mode, eval_type)  # ✅ ส่ง `project_id`
                         response = {"status": "success", "data": result}
                     except (ValueError, FileNotFoundError, RuntimeError) as e:
                         response = {"error": str(e)}
@@ -75,13 +81,14 @@ class TCPServer:
                 print(f"📌 Evaluation Response: {response}")
 
             elif cmd_type == 'predict':
-                print(f"🔍 Running Predict Command for project: {p_id}")
-                image_path = data.get("image_path", "").strip()
-                if not image_path:
-                    response = {"error": "Missing image path. Use: {'command': 'predict', 'p_id': 'proj_001', 'image_path': 'path/to/image.jpg'}"}
+                print(f"🔍 Running Predict Command for project: {project_id}")
+                image_name = (data.get("image_name") or "").strip()
+                print(f"📌 Image Name: {image_name}")
+                if not image_name:
+                    response = {"error": "Missing image name. Use: {'command': 'predict', 'project_id': 'proj_001', 'image_name': 'image_001'}"}
                 else:
                     try:
-                        result = self.model_manager.predict_from_path(p_id, image_path)  # ✅ ส่ง `p_id`
+                        result = model_manager.predict_from_path(project_id, image_name)  # ✅ ส่ง `project_id`
                         response = {"status": "success", "data": result}
                     except FileNotFoundError as e:
                         response = {"error": str(e)}
@@ -94,12 +101,11 @@ class TCPServer:
 
             elif cmd_type == 'deploy':
                 model_name = data.get("model_name")
-
                 if not model_name:
-                    response = {"error": "Missing model name. Use: {'command': 'deploy', 'p_id': 'proj_001', 'model_name': 'model.pt'}"}
+                    response = {"error": "Missing model name for deploy."}
                 else:
                     try:
-                        self.model_manager.load_model(p_id, model_name)  # ✅ ส่ง `p_id`
+                        model_manager.load_model(project_id, model_name)  # ✅ ส่ง `project_id`
                         response = {"status": "success", "message": f"Model '{model_name}' deployed successfully"}
                     except FileNotFoundError as e:
                         response = {"error": str(e)}
@@ -116,6 +122,8 @@ class TCPServer:
         
     def handle_client(self, conn):
         """📌 รับคำสั่งจาก Client และส่งไป `handle_command()`"""
+        model_manager = MLModelManager()
+        
         try:
             with conn:
                 while server_running:
@@ -123,7 +131,7 @@ class TCPServer:
                     if not data:
                         break
                     command = data.decode('utf-8').strip()
-                    self.handle_command(command, conn)
+                    self.handle_command(command, conn, model_manager)
         except Exception as e:
             print(f"Error handling client: {e}")
 
@@ -157,8 +165,7 @@ class TCPServer:
 def start_servers():
     """📌 เริ่ม TCP Server"""
     global tcp_server
-    model_manager = MLModelManager()
-    tcp_server = TCPServer(model_manager=model_manager)
+    tcp_server = TCPServer()
     tcp_thread = threading.Thread(target=tcp_server.start_server, daemon=True)
     tcp_thread.start()
 

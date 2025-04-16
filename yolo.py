@@ -15,7 +15,7 @@ def parse_arguments():
     parser.add_argument('--task', type=str, required=True, choices=['train', 'evaluate', 'test'],help="Task Type: train, evaluate, or test")
     parser.add_argument('--trained_model_path', type=str, required=False,help="Path to trained model (Only for evaluate/test)")
     parser.add_argument('--eval_type', type=str, required=False, choices=['val', 'test'],help="Evaluation type: 'val' (Validation Set) or 'test' (Test Set)")
-    parser.add_argument('--data', type=str, required=False, help="Path to dataset YAML file")  # **เพิ่ม Argument**
+    parser.add_argument('--data', type=str, required=False, help="Path to dataset YAML file or classification folder")  # **เพิ่ม Argument**
     return parser.parse_args()
 
 # Define Paths
@@ -37,7 +37,7 @@ def train_model(mode,data_path):
     try:
         print(f"🚀 Starting YOLO {mode} training...")
         model = YOLO(MODEL_MAP[mode])
-
+        print("Data Path in yolo_py: ",data_path)
         if mode == "classify":
             results = model.train(
                 data=data_path,  
@@ -60,7 +60,7 @@ def train_model(mode,data_path):
 
         # แสดงแค่ 20 บรรทัดสุดท้ายของ results
         # result_str_lines = str(results).split('\n')
-        # for line in result_str_lines[-10:]:
+        # for line in result_str_lines[-100:]:
         #     print(line)
 
         # ใช้ results.save_dir เพื่อหา path ที่ถูกต้อง
@@ -80,39 +80,47 @@ def train_model(mode,data_path):
         result_dict = getattr(results, 'results_dict', {})
         class_names = getattr(results, 'names', {})
         print("Class Names from results.names:", class_names)
+        if mode == "classify":
+            # ย้ายตรงนี้มาใส่ใน result_json โดยตรง
+            grouped_metrics = {
+                "accuracy_top1": result_dict.get("metrics/accuracy_top1", 0.0),
+                "accuracy_top5": result_dict.get("metrics/accuracy_top5", 0.0),
+                "fitness": result_dict.get("fitness", 0.0)
+            }
 
-        grouped_metrics = {}
-        other_metrics = {}
-        index_map = {}
-        class_tokens = set()
+        else:
+            grouped_metrics = {}
+            other_metrics = {}
+            index_map = {}
+            class_tokens = set()
 
-        for key in result_dict:
-            match = re.match(r"metrics/([^()]+)\(([^()]+)\)", key)
-            if match:
-                _, token = match.groups()
-                class_tokens.add(token)
+            for key in result_dict:
+                match = re.match(r"metrics/([^()]+)\(([^()]+)\)", key)
+                if match:
+                    _, token = match.groups()
+                    class_tokens.add(token)
 
-        sorted_tokens = sorted(class_tokens)
-        for idx, token in enumerate(sorted_tokens):
-            index_map[token] = idx
+            sorted_tokens = sorted(class_tokens)
+            for idx, token in enumerate(sorted_tokens):
+                index_map[token] = idx
 
-        for key, value in result_dict.items():
-            match = re.match(r"metrics/([^()]+)\(([^()]+)\)", key)
-            if match:
-                metric, token = match.groups()
-                class_idx = index_map.get(token)
-                class_label = class_names.get(class_idx, f"class_{class_idx}")
-                if class_label not in grouped_metrics:
-                    grouped_metrics[class_label] = {}
-                grouped_metrics[class_label][metric] = round(value, 4)
-            else:
-                other_metrics[key] = round(value, 4) if isinstance(value, (float, int)) else value
+            for key, value in result_dict.items():
+                match = re.match(r"metrics/([^()]+)\(([^()]+)\)", key)
+                if match:
+                    metric, token = match.groups()
+                    class_idx = index_map.get(token)
+                    class_label = class_names.get(class_idx, f"class_{class_idx}")
+                    if class_label not in grouped_metrics:
+                        grouped_metrics[class_label] = {}
+                    grouped_metrics[class_label][metric] = round(value, 4)
+                else:
+                    other_metrics[key] = round(value, 4) if isinstance(value, (float, int)) else value
 
-        for label in grouped_metrics:
-            token = sorted_tokens[list(class_names.values()).index(label)] if label in class_names.values() else None
-            for key, value in other_metrics.items():
-                if token and f"({token})" in key and "mAP50-95" in key:
-                    grouped_metrics[label]["mAP50-95"] = value
+            for label in grouped_metrics:
+                token = sorted_tokens[list(class_names.values()).index(label)] if label in class_names.values() else None
+                for key, value in other_metrics.items():
+                    if token and f"({token})" in key and "mAP50-95" in key:
+                        grouped_metrics[label]["mAP50-95"] = value
 
         result_json = {
             "message": "Training completed successfully",
@@ -132,7 +140,7 @@ def train_model(mode,data_path):
         return error_json
 
 
-def evaluate_or_test_model(mode, trained_model_path, eval_type):
+def evaluate_or_test_model(mode, trained_model_path, data_path, eval_type):
     """Evaluate or test YOLO model."""
     try:
         print(f"\n🔹 Evaluating {mode} Model on {eval_type.upper()} Set...")
@@ -141,7 +149,7 @@ def evaluate_or_test_model(mode, trained_model_path, eval_type):
         if mode == "classify":
             # เลือก dataset ตาม `eval_type` (val หรือ test)
             split_type = "val" if eval_type == "val" else "test"
-            metrics = model.val(data=DATA_PATH_MAP[mode], split=split_type)
+            metrics = model.val(data=data_path, split=split_type) # for classify
 
             # ค่าความถูกต้องทั่วไป (Overall)
             top1_accuracy = float(metrics.top1) if metrics.top1 is not None else 0.0
@@ -198,7 +206,7 @@ def evaluate_or_test_model(mode, trained_model_path, eval_type):
             return result_json  # Return result to the caller
         else:
             # ใช้ค่า `eval_type` ที่ได้รับมา ("val" หรือ "test")
-            results = model.val(data=DATA_PATH_MAP[mode], split=eval_type, imgsz=640, conf=0.5)
+            results = model.val(data=data_path, split=eval_type, imgsz=640, conf=0.5) # # for detect/segment
 
             total_instances = results.box.nc  # จำนวนคลาสทั้งหมด
             # ค่า mAP (Mean Average Precision)
@@ -237,15 +245,6 @@ def evaluate_or_test_model(mode, trained_model_path, eval_type):
             # คำนวณ Overall Accuracy
             overall_accuracy = (total_correct_predictions / total_instances) if total_instances > 0 else 0
 
-            print("\nTest Results:")
-            print(f"  Total Instances(Classes): {total_instances}")
-            print(f"  Accuracy: {overall_accuracy}")
-            print(f"  mAP50: {map50:.4f}")
-            print(f"  mAP50-95: {map95}")
-            print(f"  Precision: {overall_precision:.4f}")
-            print(f"  Recall: {overall_recall:.4f}")
-            print(f"  F1 Score: {overall_f1_score:.4f}")
-
             # รวมค่าทั้งหมดไว้ใน JSON response
             result_json = {
                 "message": f"YOLO {eval_type} evaluation completed successfully",
@@ -277,8 +276,8 @@ if __name__ == "__main__":
     # Run based on the chosen task
     if args.task == "train":
         train_model(args.mode, args.data)
-    elif args.task in ["evaluate", "test"]:
+    elif args.task == "evaluate":
         if not args.trained_model_path:
-            print(json.dumps({"error": "trained_model_path is required for evaluate/test"}))
+            print(json.dumps({"error": "trained_model_path is required for evaluation"}))
         else:
-            evaluate_or_test_model(args.mode, args.trained_model_path, args.eval_type)
+            evaluate_or_test_model(args.mode, args.trained_model_path, args.data, args.eval_type)
