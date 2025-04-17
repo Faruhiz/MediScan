@@ -41,18 +41,22 @@ def train_model(mode,data_path):
         if mode == "classify":
             results = model.train(
                 data=data_path,  
-                epochs=10,
-                imgsz=224,
-                batch=16,
-                amp=False
+                epochs=100,
+                imgsz=320,
+                batch=32,
+                amp=False,
+                lr0=0.001,
+                patience=10,
             )
         else:
             results = model.train(
                 data=data_path,
-                epochs=10,
+                epochs=100,
                 imgsz=640,
-                batch=16,
-                amp=False
+                batch=32,
+                amp=False,
+                lr0=0.001,
+                patience=10,
             )
 
         print("\n✅ YOLO training completed!")

@@ -6,7 +6,7 @@ import sys
 BASE_PROJECT_DIR = os.path.abspath(os.path.join(os.getcwd(), "..", "MedSight_Project"))
 BASE_WORKSPACE_DIR = os.path.abspath(os.path.join(os.getcwd(), "..", "MediScan", "workspace"))
 
-def prepare_classification_workspace(project_id, source_folder, train_ratio=100, val_ratio=25, test_ratio=25):
+def prepare_classification_workspace(project_id, source_folder, train_ratio=100, val_ratio=15, test_ratio=15):
 
     source_folder = os.path.join(BASE_PROJECT_DIR, project_id, "annotated_images")
     classification_folder = os.path.join(BASE_WORKSPACE_DIR, project_id, "classification")
@@ -36,11 +36,12 @@ def prepare_classification_workspace(project_id, source_folder, train_ratio=100,
 
     random.shuffle(image_label_pairs)
     total = len(image_label_pairs)
+
     val_count = int(total * val_ratio / 100)
     test_count = int(total * test_ratio / 100)
-    train_count = total - val_count - test_count
+    train_count = total - val_count - test_count  # เหลือให้ train
 
-    train_items = image_label_pairs[:total]
+    train_items = image_label_pairs[:train_count]
     val_items = image_label_pairs[train_count:train_count + val_count]
     test_items = image_label_pairs[train_count + val_count:]
 
@@ -64,8 +65,7 @@ def prepare_classification_workspace(project_id, source_folder, train_ratio=100,
     print(f"  Total images: {total}")
     print(f"  Train: {split_counts['train']} | Val: {split_counts['valid']} | Test: {split_counts['test']}")
     
-
-def prepare_segment_detect_dataset(project_id, source_folder, data_yaml_source, base_workspace="./workspace",train_ratio=100, val_ratio=25, test_ratio=25):
+def prepare_segment_detect_dataset(project_id, source_folder, data_yaml_source, base_workspace="./workspace", val_ratio=15, test_ratio=15):
     project_path = os.path.join(base_workspace, project_id)
     folders = {
         "train_images": os.path.join(project_path, "train/images"),
@@ -105,11 +105,12 @@ def prepare_segment_detect_dataset(project_id, source_folder, data_yaml_source, 
 
     random.shuffle(image_label_pairs)
     total = len(image_label_pairs)
+
     val_count = int(total * val_ratio / 100)
     test_count = int(total * test_ratio / 100)
-    train_count = total - val_count - test_count
+    train_count = total - val_count - test_count  # เหลือให้ train
 
-    train_files = image_label_pairs[:total]
+    train_files = image_label_pairs[:train_count]
     val_files = image_label_pairs[train_count:train_count + val_count]
     test_files = image_label_pairs[train_count + val_count:]
 
