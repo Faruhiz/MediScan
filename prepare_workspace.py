@@ -128,6 +128,7 @@ def prepare_segment_detect_dataset(project_id, source_folder, data_yaml_source, 
         shutil.copy(data_yaml_source, os.path.join(project_path, "data.yaml"))
         print(f"data.yaml copied to: {project_path}")
     else:
+        raise FileNotFoundError(f"data.yaml not found at {data_yaml_source} for project '{project_id}'")
         print("data.yaml not found!")
 
     print(f"Dataset for Segmentation and Detection prepared at: {project_path}")

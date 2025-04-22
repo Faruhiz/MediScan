@@ -14,17 +14,11 @@ def parse_arguments():
     parser.add_argument('--mode', type=str, required=True, choices=['segment', 'detect', 'classify'],help="Model Type: segmentation, detection, or classification")
     parser.add_argument('--task', type=str, required=True, choices=['train', 'evaluate', 'test'],help="Task Type: train, evaluate, or test")
     parser.add_argument('--trained_model_path', type=str, required=False,help="Path to trained model (Only for evaluate/test)")
-    parser.add_argument('--eval_type', type=str, required=False, choices=['val', 'test'],help="Evaluation type: 'val' (Validation Set) or 'test' (Test Set)")
     parser.add_argument('--data', type=str, required=False, help="Path to dataset YAML file or classification folder")  # **เพิ่ม Argument**
     return parser.parse_args()
 
 # Define Paths
 BASE_PATH = "./"
-DATA_PATH_MAP = {
-    "segment": os.path.join(BASE_PATH, "Test_segmentation-1/data.yaml"),
-    "detect": os.path.join(BASE_PATH, "Test_segmentation-1/data.yaml"),
-    "classify": os.path.join(BASE_PATH, "classification")  # Classification uses a directory, not a .yaml
-}
 
 MODEL_MAP = {
     "segment": "yolov8n-seg.pt",
@@ -45,8 +39,6 @@ def train_model(mode,data_path):
                 imgsz=320,
                 batch=32,
                 amp=False,
-                lr0=0.001,
-                patience=10,
             )
         else:
             results = model.train(
@@ -55,8 +47,6 @@ def train_model(mode,data_path):
                 imgsz=640,
                 batch=32,
                 amp=False,
-                lr0=0.001,
-                patience=10,
             )
 
         print("\n✅ YOLO training completed!")
@@ -144,9 +134,10 @@ def train_model(mode,data_path):
         return error_json
 
 
-def evaluate_or_test_model(mode, trained_model_path, data_path, eval_type):
+def evaluate_or_test_model(mode, trained_model_path, data_path, ):
     """Evaluate or test YOLO model."""
     try:
+        eval_type = "test"
         print(f"\n🔹 Evaluating {mode} Model on {eval_type.upper()} Set...")
         model = YOLO(trained_model_path)
 
@@ -206,10 +197,10 @@ def evaluate_or_test_model(mode, trained_model_path, data_path, eval_type):
                     "class_metrics": class_metrics
                 }
             }
-            print(json.dumps(result_json))  # Ensure output is JSON
+            print(json.dumps(result_json))
             return result_json  # Return result to the caller
         else:
-            # ใช้ค่า `eval_type` ที่ได้รับมา ("val" หรือ "test")
+            
             results = model.val(data=data_path, split=eval_type, imgsz=640, conf=0.5) # # for detect/segment
 
             total_instances = results.box.nc  # จำนวนคลาสทั้งหมด
@@ -217,8 +208,8 @@ def evaluate_or_test_model(mode, trained_model_path, data_path, eval_type):
             map50 = results.box.map50  # mAP@50
             map95 = results.box.map  # mAP@50-95
             # Precision, Recall, และ F1 Score ทั้ง dataset
-            overall_precision = results.box.p.mean()
-            overall_recall = results.box.r.mean()
+            overall_precision = np.array(results.box.p).mean()
+            overall_recall =  np.array(results.box.r).mean()
             overall_f1_score = 2 * (overall_precision * overall_recall) / (overall_precision + overall_recall) if (overall_precision + overall_recall) > 0 else 0
             
             # เก็บค่าของแต่ละคลาส
@@ -262,8 +253,7 @@ def evaluate_or_test_model(mode, trained_model_path, data_path, eval_type):
                     "class_details": class_metrics  # ข้อมูลของแต่ละคลาส
                 }
             }
-            print(json.dumps(result_json))  # Ensure output is JSON
-            
+            print(json.dumps(result_json))
             return result_json  # Return result to the caller
     except Exception as e:
         error_json = {"error": f"Evaluation failed: {str(e)}"}
@@ -284,4 +274,4 @@ if __name__ == "__main__":
         if not args.trained_model_path:
             print(json.dumps({"error": "trained_model_path is required for evaluation"}))
         else:
-            evaluate_or_test_model(args.mode, args.trained_model_path, args.data, args.eval_type)
+            evaluate_or_test_model(args.mode, args.trained_model_path, args.data)

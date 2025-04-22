@@ -66,16 +66,14 @@ class TrainRequest(BaseModel):
 class EvaluateRequest(BaseModel):
     project_id: str
     model_name: str
-    mode: str
-    eval_type: Optional[str] = "test"  # val or test
-
-class PredictRequest(BaseModel):
-    project_id: str
-    image_name: str
 
 class DeployRequest(BaseModel):
     project_id: str
     model_name: str
+
+class PredictRequest(BaseModel):
+    project_id: str
+    image_name: str
 
 # ✅ Swagger Routes
 @app.post("/train")
@@ -94,17 +92,6 @@ def evaluate_model(req: EvaluateRequest):
         "command": "evaluate",
         "project_id": req.project_id,
         "model_name": req.model_name,
-        "mode": req.mode,
-        "eval_type": req.eval_type
-    }
-    return tcp_client.send_command(cmd)
-
-@app.post("/predict")
-def predict_image(req: PredictRequest):
-    cmd = {
-        "command": "predict",
-        "project_id": req.project_id,
-        "image_name": req.image_name
     }
     return tcp_client.send_command(cmd)
 
@@ -114,6 +101,15 @@ def deploy_model(req: DeployRequest):
         "command": "deploy",
         "project_id": req.project_id,
         "model_name": req.model_name
+    }
+    return tcp_client.send_command(cmd)
+
+@app.post("/predict")
+def predict_image(req: PredictRequest):
+    cmd = {
+        "command": "predict",
+        "project_id": req.project_id,
+        "image_name": req.image_name
     }
     return tcp_client.send_command(cmd)
 

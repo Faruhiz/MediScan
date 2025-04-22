@@ -82,3 +82,71 @@ class DatabaseManager:
 
         conn.commit()
         conn.close()
+
+    def model_exists(self, project_id, model_name):
+        """✅ ตรวจสอบว่า model_name ซ้ำในโปรเจกต์หรือไม่"""
+        db_path = self.get_db_path(project_id)
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+
+        # สร้างตารางถ้ายังไม่มี
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS models (
+                model_id TEXT PRIMARY KEY,
+                model_name TEXT NOT NULL,
+                mode TEXT NOT NULL,
+                model_path TEXT NOT NULL,
+                validation_metrics TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        cursor.execute("SELECT COUNT(*) FROM models WHERE model_name = ?", (model_name,))
+        count = cursor.fetchone()[0]
+        conn.close()
+
+        return count > 0
+    
+    def get_model_info(self, project_id, model_name):
+        """🔍 ดึง mode และ model_id ของ model_name จาก DB"""
+        db_path = self.get_db_path(project_id)
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        cursor.execute("SELECT model_id, mode FROM models WHERE model_name = ?", (model_name,))
+        result = cursor.fetchone()
+        conn.close()
+        if result:
+            return {"model_id": result[0], "mode": result[1]}
+        return None
+    
+    def insert_evaluation(self, project_id, model_name, model_id, mode, eval_result_dict):
+        """✅ บันทึกผล evaluation ลงในตาราง evaluation"""
+        try:
+            db_path = self.get_db_path(project_id)
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS evaluation (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    model_id TEXT NOT NULL,
+                    model_name TEXT NOT NULL,
+                    mode TEXT NOT NULL,
+                    eval_result TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+            eval_json = json.dumps(eval_result_dict, ensure_ascii=False)
+
+            cursor.execute("""
+                INSERT INTO evaluation (model_id, model_name, mode, eval_result)
+                VALUES (?, ?, ?, ?)
+            """, (model_id, model_name, mode, eval_json))
+
+            conn.commit()
+            conn.close()
+
+            return f"Evaluation inserted: model_id={model_id}, model_name={model_name}, mode={mode}"
+        except Exception as e:
+            raise RuntimeError(f"❌ Failed to insert evaluation: {str(e)}")

@@ -64,16 +64,12 @@ class TCPServer:
                 print(f"🔍 Running Evaluation for project: {project_id}")
 
                 model_name = data.get("model_name")
-                mode = data.get("mode")
-                eval_type = data.get("eval_type", "test").lower()  # ✅ ตั้งค่า default เป็น 'test' หากไม่ได้ส่งมา
 
                 if not model_name:
                     response = {"error": "Missing model_name for evaluation."}
-                elif not mode:
-                    response = {"error": "Missing mode for evaluation."}
                 else:
                     try:
-                        result = model_manager.evaluate_model(project_id, model_name, mode, eval_type)  # ✅ ส่ง `project_id`
+                        result = model_manager.evaluate_model(project_id, model_name)  # ✅ ส่ง `project_id`
                         response = {"status": "success", "data": result}
                     except (ValueError, FileNotFoundError, RuntimeError) as e:
                         response = {"error": str(e)}

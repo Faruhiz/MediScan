@@ -129,6 +129,10 @@ class MLModelManager:
         if mode not in ["detect", "segment", "classify"]:
             raise ValueError(f"Invalid mode '{mode}'. Use: detect, segment, classify")
         
+        if self.db.model_exists(project_id, model_name):
+            print(f"❌ Model name '{model_name}' already exists in project '{project_id}'")
+            raise ValueError(f"❌ Model name '{model_name}' already exists in project '{project_id}'")
+        
         # ✅ **เรียก `prepare_workspace.py` ก่อนเทรน**
         self.prepare_workspace(project_id , mode)
         
@@ -136,6 +140,7 @@ class MLModelManager:
 
         # ✅ เช็คว่า project_path มีอยู่จริงไหม
         if not os.path.exists(project_path):
+            print(f"❌ Project '{project_id}' not found at {project_path}")
             raise FileNotFoundError(f"❌ Project '{project_id}' not found at {project_path}")
 
         if mode == "classify":
@@ -199,17 +204,21 @@ class MLModelManager:
             return {"status": "error", "message": f"An unexpected error occurred: {str(e)}"}
 
 
-    def evaluate_model(self, project_id , model_name, mode , eval_type="test"):
+    def evaluate_model(self, project_id , model_name ):
         """Evaluate a specific YOLO model using yolo.py."""
-        # ตรวจสอบว่า eval_type ถูกต้องหรือไม่
-        if eval_type not in ["val", "test"]:
-            raise ValueError("Invalid evaluation type. Use 'val' or 'test'.")
         
-        # หา path ของโมเดลใน `MedSight_Project/project_id`
+        # ดึงข้อมูล model_id และ mode
+        model_info = self.db.get_model_info(project_id, model_name)
+        if not model_info:
+            print(f"Model '{model_name}' not found in DB for project '{project_id}'")
+            raise ValueError(f"❌ Model '{model_name}' not found in DB for project '{project_id}'")
+        
+        model_id = model_info["model_id"]
+        mode = model_info["mode"]
 
         model_path = os.path.join(BASE_PROJECT_DIR, project_id, "models", model_name, "model.pt").replace("\\", "/")
 
-        # ✅ กำหนด path ของ data.yaml/classification ขึ้นอยู่กับ mode
+        # Path dataset
         if mode in ["segment", "detect"]:
             data_path = os.path.join(BASE_WORKSPACE_DIR, project_id, "data.yaml").replace("\\", "/")
         elif mode == "classify":
@@ -217,17 +226,16 @@ class MLModelManager:
         else:
             raise ValueError("Invalid mode. Choose from: segment, detect, classify.")
 
-        print(f"🔍 Evaluating YOLO {mode} model (ID: {model_name}) for project {project_id} using {eval_type} set")
-            
         # ตรวจสอบว่าไฟล์โมเดลมีอยู่จริง
         if not os.path.exists(model_path):
             print(f"Model not found at {model_path}")
             raise FileNotFoundError(f"Model not found at {model_path}")
-
+        
+        print(f"🔍 Evaluating YOLO {mode} model (ID: {model_name}) for project {project_id}.")
         # เรียกใช้ `yolo.py` พร้อมส่ง mode และ model path
         try:
             result = subprocess.run(
-                ['python', 'yolo.py', '--mode', mode, '--task', 'evaluate', '--trained_model_path', model_path,'--data', data_path,'--eval_type', eval_type],
+                ['python', 'yolo.py', '--mode', mode, '--task', 'evaluate', '--trained_model_path', model_path,'--data', data_path],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE
             )
@@ -245,11 +253,17 @@ class MLModelManager:
             # ค้นหา JSON Output ที่ถูกต้อง
             
             json_lines = [line for line in stdout.splitlines() if line.strip().startswith('{') and line.strip().endswith('}')]
-            
             if not json_lines:
                 raise RuntimeError("Evaluation completed, but could not parse JSON output from yolo.py")
 
             eval_results = json.loads(json_lines[-1])  # ✅ ใช้ JSON บรรทัดสุดท้ายที่ print ออกมา
+
+            try:
+                insert_message = self.db.insert_evaluation(project_id, model_name, model_id, mode, eval_results)
+                print(insert_message)
+            except RuntimeError as insert_error:
+                print(f"⚠️ Failed to save evaluation result to DB: {str(insert_error)}")
+            
             return eval_results
 
         except Exception as e:
