@@ -35,7 +35,7 @@ def train_model(mode,data_path):
         if mode == "classify":
             results = model.train(
                 data=data_path,  
-                epochs=15,
+                epochs=100,
                 imgsz=320,
                 batch=32,
                 amp=False,
@@ -43,7 +43,7 @@ def train_model(mode,data_path):
         else:
             results = model.train(
                 data=data_path,
-                epochs=15,
+                epochs=100,
                 imgsz=640,
                 batch=32,
                 amp=False,
@@ -57,7 +57,6 @@ def train_model(mode,data_path):
         # for line in result_str_lines[-100:]:
         #     print(line)
 
-        # ใช้ results.save_dir เพื่อหา path ที่ถูกต้อง
         save_dir = results.save_dir if hasattr(results, "save_dir") else None
         if save_dir:
             trained_model_path = os.path.join(str(save_dir), "weights", "best.pt")

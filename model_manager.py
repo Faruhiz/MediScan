@@ -205,7 +205,7 @@ class MLModelManager:
             
             # ✅ บันทึกโมเดลและอัปเดต DB
             save_result = self.save_model(project_id , model_name , mode , result_dir , model_path , validation_metrics)
-            log_info(f"Evaluation results inserted for model {model_name} in project {project_id}")
+            log_info(f"Training results inserted for model {model_name} in project {project_id}")
             return save_result
 
         except Exception as e:
@@ -281,7 +281,7 @@ class MLModelManager:
             log_error(f"An unexpected error occurred during evaluation: {str(e)}")
             raise RuntimeError(f"An unexpected error occurred during evaluation: {str(e)}")
 
-    def predict_from_path(self, project_id , image_name, confidence_threshold=0.2):
+    def predict_from_path(self, project_id , image_name, confidence_threshold=0.4):
         log_info(f"Prediction started: project={project_id}, image={image_name}, model={self.model_name}")
         if not self.current_model:
             log_error("No model loaded. Prediction aborted.")
