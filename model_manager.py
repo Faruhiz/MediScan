@@ -395,33 +395,4 @@ class MLModelManager:
             print(f"Error during prediction: {str(e)}")
             return {"error": f"An error occurred during prediction: {str(e)}"}
 if __name__ == "__main__":
-    # 🔥 ทดสอบ Training
-    project_id = "project_001"  # เปลี่ยนเป็นค่า PID ที่ต้องการ
-    mode = "segment"  # เปลี่ยนเป็น mode ที่ต้องการ ('detect', 'segment', 'classify')
-
     model_manager = MLModelManager()
-
-    # print(f"🚀 Starting training for PID: {project_id}, Mode: {mode}")
-    train_results = model_manager.train_model(project_id, "qwww" ,mode)
-
-    # ทดสอบ load_model
-    # model_manager = MLModelManager()
-    # train_results = model = model_manager.load_model("project_001", "model_001")
-
-    # # ทดสอบ predict_model
-    # # model_manager = MLModelManager()
-    # train_results = model = model_manager.predict_from_path("project_001","image_001")
-
-    # ทดสอบ save_model
-    # model_manager = MLModelManager()
-    # train_results = model = model_manager.save_model("project_001", "segment", "runs\\segment\\train70","runs\\segment\\train70\\weights\\best.pt","model_001")
-
-    # evaluate
-    # project_id = "project_001"            # 🔧 เปลี่ยนเป็นโปรเจกต์ของคุณ
-    # model_name = "segment"                # 🔧 เปลี่ยนเป็นชื่อโมเดลที่ต้องการ
-    # mode = "segment"                      # 🔧 เลือกจาก: "segment", "detect", "classify"
-
-    # model_manager = MLModelManager()
-
-    # result = model_manager.evaluate_model(project_id=project_id, model_name=model_name, mode=mode)
-    # print("Evaluation completed."+json.dumps(result, indent=2))
