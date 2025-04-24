@@ -1,8 +1,12 @@
-from fastapi import FastAPI, Body
+from fastapi import FastAPI, Body, Request
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from typing import Optional
 import socket
 import json
+import matplotlib.pyplot as plt
+import io
+import base64
 
 app = FastAPI(title="MedSight TCP Interface (via Swagger)", 
               description="Wrapper to test TCP commands via HTTP (Swagger)"
@@ -75,9 +79,25 @@ class PredictRequest(BaseModel):
     project_id: str
     image_name: str
 
+# Global dictionary to track API call counts
+api_call_counts = {
+    "/train": 0,
+    "/evaluate": 0,
+    "/deploy": 0,
+    "/predict": 0,
+}
+
+def track_api_usage(endpoint: str):
+    """Increment the call count for the given endpoint."""
+    if endpoint in api_call_counts:
+        api_call_counts[endpoint] += 1
+    else:
+        api_call_counts[endpoint] = 1
+
 # ✅ Swagger Routes
 @app.post("/train")
 def train_model(req: TrainRequest):
+    track_api_usage("/train")
     cmd = {
         "command": "train",
         "project_id": req.project_id,
@@ -88,6 +108,7 @@ def train_model(req: TrainRequest):
 
 @app.post("/evaluate")
 def evaluate_model(req: EvaluateRequest):
+    track_api_usage("/evaluate")
     cmd = {
         "command": "evaluate",
         "project_id": req.project_id,
@@ -97,6 +118,7 @@ def evaluate_model(req: EvaluateRequest):
 
 @app.post("/deploy")
 def deploy_model(req: DeployRequest):
+    track_api_usage("/deploy")
     cmd = {
         "command": "deploy",
         "project_id": req.project_id,
@@ -106,12 +128,52 @@ def deploy_model(req: DeployRequest):
 
 @app.post("/predict")
 def predict_image(req: PredictRequest):
+    track_api_usage("/predict")
     cmd = {
         "command": "predict",
         "project_id": req.project_id,
         "image_name": req.image_name
     }
     return tcp_client.send_command(cmd)
+
+@app.get("/dashboard", response_class=HTMLResponse)
+def get_dashboard():
+    """Generate a dashboard with API usage statistics."""
+    # Generate a bar chart using Matplotlib
+    endpoints = list(api_call_counts.keys())  # Ensure these are strings
+    counts = list(api_call_counts.values())
+
+    plt.figure(figsize=(10, 6))
+    plt.bar(endpoints, counts, color='skyblue')
+    plt.xlabel("API Endpoints")
+    plt.ylabel("Call Counts")
+    plt.title("API Usage Dashboard")
+    plt.xticks(rotation=45, ha="right")  # Ensure proper rotation for readability
+
+    # Save the plot to a BytesIO object
+    buf = io.BytesIO()
+    plt.tight_layout()
+    plt.savefig(buf, format="png")
+    buf.seek(0)
+    plt.close()
+
+    # Encode the image to base64
+    image_base64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+    buf.close()
+
+    # Return an HTML page with the embedded image
+    html_content = f"""
+    <html>
+        <head>
+            <title>API Usage Dashboard</title>
+        </head>
+        <body>
+            <h1>API Usage Dashboard</h1>
+            <img src="data:image/png;base64,{image_base64}" alt="API Usage Dashboard">
+        </body>
+    </html>
+    """
+    return HTMLResponse(content=html_content)
 
 @app.post("/close")
 def close_connection():
